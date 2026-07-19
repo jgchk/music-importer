@@ -22,7 +22,9 @@ The user's own beets configuration is authoritative for everything
 library-defining; the SESSION_OVERLAY below force-overrides the small
 documented set of session keys (applied via config.set() BEFORE load_plugins(),
 which is the ordering confuse requires for the overlay to win) so no invocation
-can ever prompt, resume, or skip incrementally. The beets version is pinned in
+can ever prompt, resume, or skip incrementally. The bootstrap also guarantees
+the MusicBrainz candidate source plugin is loaded even when a plugin list
+written for an older beets omits it. The beets version is pinned in
 requirements.txt and the runtime image; the JSON emitted here is frozen by the
 contract-test fixtures under test/contract/.
 
@@ -85,6 +87,14 @@ def bootstrap(config_path):
 
     config.set_file(config_path)
     deep_set(config, SESSION_OVERLAY)
+    # Guarantee the MusicBrainz candidate source: beets moved it from built-in to the
+    # `musicbrainz` plugin, so a plugin list written for an older beets silently loads no
+    # MB source at all. Sourcing candidates is session machinery (like non-interactivity),
+    # so the bridge injects it into the effective list — never into the user's file. Other
+    # source plugins were always opt-in and are honored as written.
+    plugin_names = list(config["plugins"].as_str_seq())
+    if "musicbrainz" not in plugin_names:
+        config["plugins"].set([*plugin_names, "musicbrainz"])
     plugins.load_plugins()
     plugins.send("pluginload")
     return config

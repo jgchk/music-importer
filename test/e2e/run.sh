@@ -43,7 +43,9 @@ directory: /music/library
 library: /config/beets/library.db
 import:
   move: yes
-plugins: [musicbrainz]
+# Pre-plugin-era shape: no `musicbrainz` entry — the bridge must inject the source itself.
+# scrub keeps the list non-empty and offline.
+plugins: [scrub]
 YAML
 
 # Generate the fixture intake with the image's own ffmpeg (no host ffmpeg needed). Each album
