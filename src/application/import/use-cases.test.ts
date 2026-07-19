@@ -11,6 +11,7 @@ import { ImportStatusProjection } from '../projections/read-models.js';
 import { FakeEventStore, fixedClock } from '../__fixtures__/fakes.js';
 import type { UseCaseDeps } from './use-cases.js';
 import {
+  findAcquisitionImport,
   getImport,
   importIdFor,
   listImports,
@@ -68,6 +69,18 @@ describe('submitImport', () => {
     const again = await submitImport(d, { directory: DIRECTORY });
     expect(again._unsafeUnwrap().importId).toBe(importIdFor(DIRECTORY));
     expect(d.store.all()).toHaveLength(1);
+  });
+
+  it('records the acquisition source so the linkage is queryable from the log', async () => {
+    const d = deps();
+    await submitImport(d, { directory: DIRECTORY, source: { acquisitionId: 'acq-1' } });
+    expect(d.store.all()[0]!.event).toMatchObject({
+      type: 'ImportRequested',
+      source: { acquisitionId: 'acq-1' },
+    });
+    d.status.rebuild(d.store.all());
+    expect(findAcquisitionImport(d, 'acq-1')).toBe(importIdFor(DIRECTORY));
+    expect(findAcquisitionImport(d, 'acq-2')).toBeUndefined();
   });
 });
 

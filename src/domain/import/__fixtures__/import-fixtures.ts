@@ -4,6 +4,7 @@ import type {
   ImportEvent,
   ImportHints,
   ImportPolicy,
+  ImportSource,
   ManualTags,
   ProposedCandidate,
   Resolution,
@@ -42,7 +43,9 @@ export const MANUAL_TAGS: ManualTags = {
   tracks: [{ path: `${DIRECTORY}/01 Track.flac`, title: 'Track', trackNumber: 1 }],
 };
 
-export function requested(overrides: Partial<{ hints: ImportHints }> = {}): ImportEvent {
+export function requested(
+  overrides: Partial<{ hints: ImportHints; source: ImportSource }> = {},
+): ImportEvent {
   return { type: 'ImportRequested', directory: DIRECTORY, policy: POLICY, ...overrides };
 }
 

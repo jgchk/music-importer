@@ -43,6 +43,16 @@ describe('submission', () => {
     expect(events[0]).toMatchObject({ type: 'ImportRequested', hints: HINTS });
   });
 
+  it('stamps the acquisition source onto an event-driven request', () => {
+    const events = given([])
+      .execute({ ...SUBMIT, source: { acquisitionId: 'acq-1' } })
+      ._unsafeUnwrap();
+    expect(events[0]).toMatchObject({
+      type: 'ImportRequested',
+      source: { acquisitionId: 'acq-1' },
+    });
+  });
+
   it('converges on a duplicate submission while the import is live', () => {
     expect(given(awaitingMatchReview()).execute(SUBMIT)._unsafeUnwrap()).toEqual([]);
   });

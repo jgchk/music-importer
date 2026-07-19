@@ -1,4 +1,5 @@
 import { mkdirSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { BeetsBridge } from '../adapters/beets/bridge-adapter.js';
 import { FilesystemIntake } from '../adapters/filesystem/intake.js';
@@ -93,9 +94,34 @@ async function main(): Promise<void> {
     status,
     policy: { autoApplyThreshold: config.autoApplyThreshold },
   };
+  // The acquisition webhook receiver is config-dormant: no secret, no route (downloader-intake D2).
+  const intakeWebhook = config.intakeWebhook;
   const httpApp = await buildHttpApp(deps, logger, readAppVersion(), {
     beetsConfig: beetsConfig.value,
+    intake:
+      intakeWebhook === undefined
+        ? undefined
+        : {
+            secret: intakeWebhook.secret,
+            sourceRoot: intakeWebhook.sourceRoot,
+            intakeRoot: config.intakeRoot,
+            directoryExists: async (directory) => {
+              try {
+                return (await stat(directory)).isDirectory();
+              } catch {
+                return false;
+              }
+            },
+          },
   });
+  if (intakeWebhook === undefined) {
+    logger.info('acquisition webhook receiver dormant (no INTAKE_WEBHOOK_SECRET)');
+  } else {
+    logger.info(
+      { sourceRoot: intakeWebhook.sourceRoot, intakeRoot: config.intakeRoot },
+      'acquisition webhook receiver active',
+    );
+  }
   await httpApp.listen({ port: config.httpPort, host: config.host });
 
   logger.info({ port: config.httpPort, host: config.host }, 'music-importer started');

@@ -49,4 +49,47 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...REQUIRED, HTTP_PORT: 'not-a-port' }).isErr()).toBe(true);
     expect(loadConfig({ ...REQUIRED, AUTO_APPLY_THRESHOLD: '1.5' }).isErr()).toBe(true);
   });
+
+  it('leaves the intake webhook dormant when no secret is configured', () => {
+    expect(loadConfig(REQUIRED)._unsafeUnwrap().intakeWebhook).toBeUndefined();
+  });
+
+  it('activates the intake webhook from a usable secret plus source root', () => {
+    const secret = `whsec_${Buffer.from('intake-signing-key').toString('base64')}`;
+    const config = loadConfig({
+      ...REQUIRED,
+      INTAKE_WEBHOOK_SECRET: secret,
+      INTAKE_SOURCE_ROOT: '/downloads/import',
+    })._unsafeUnwrap();
+    expect(config.intakeWebhook).toEqual({ secret, sourceRoot: '/downloads/import' });
+  });
+
+  it('accepts a bare-base64 secret (the whsec_ prefix is conventional, not required)', () => {
+    const secret = Buffer.from('intake-signing-key').toString('base64');
+    const config = loadConfig({
+      ...REQUIRED,
+      INTAKE_WEBHOOK_SECRET: secret,
+      INTAKE_SOURCE_ROOT: '/downloads/import',
+    })._unsafeUnwrap();
+    expect(config.intakeWebhook?.secret).toBe(secret);
+  });
+
+  it('rejects a malformed intake secret with a precise error', () => {
+    for (const secret of ['whsec_', 'whsec_!!!not-base64!!!', 'whsec_====']) {
+      const result = loadConfig({
+        ...REQUIRED,
+        INTAKE_WEBHOOK_SECRET: secret,
+        INTAKE_SOURCE_ROOT: '/downloads/import',
+      });
+      expect(result._unsafeUnwrapErr()).toContain('INTAKE_WEBHOOK_SECRET');
+    }
+  });
+
+  it('rejects an active receiver missing its source root', () => {
+    const result = loadConfig({
+      ...REQUIRED,
+      INTAKE_WEBHOOK_SECRET: `whsec_${Buffer.from('k').toString('base64')}`,
+    });
+    expect(result._unsafeUnwrapErr()).toContain('INTAKE_SOURCE_ROOT');
+  });
 });
