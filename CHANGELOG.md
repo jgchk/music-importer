@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.3](https://github.com/jgchk/music-importer/compare/v0.1.2...v0.1.3) (2026-07-19)
+
+
+### Bug Fixes
+
+* **bridge:** guarantee the musicbrainz candidate source loads ([5b11a6c](https://github.com/jgchk/music-importer/commit/5b11a6c84ad41c5328ffe9ebea55864125cd4ef0))
+
 ## [0.1.2](https://github.com/jgchk/music-importer/compare/v0.1.1...v0.1.2) (2026-07-19)
 
 
