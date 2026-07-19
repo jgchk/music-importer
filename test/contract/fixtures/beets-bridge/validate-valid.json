@@ -1,0 +1,33 @@
+{
+  "name": "validate-valid",
+  "output": {
+    "beets_version": "2.12.0",
+    "library_database": "/tmp/tmp.KYCeUjo8Hp/beets/library.db",
+    "library_directory": "/tmp/tmp.KYCeUjo8Hp/library",
+    "overlay": {
+      "import": {
+        "detail": false,
+        "incremental": false,
+        "log": null,
+        "quiet": false,
+        "resume": false,
+        "search_ids": [],
+        "timid": false
+      },
+      "threaded": false,
+      "ui": {
+        "color": false
+      },
+      "verbose": 0
+    },
+    "plugins": ["musicbrainz"],
+    "status": "valid"
+  },
+  "provenance": {
+    "beets": "2.12.0",
+    "capturedAt": "2026-07-19",
+    "recorder": "test/contract/record-bridge-fixtures.sh",
+    "release": "22c9f6a3-0569-4c59-b551-cb4a26b0bc3f"
+  },
+  "verb": "validate"
+}

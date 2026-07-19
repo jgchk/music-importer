@@ -59,8 +59,9 @@ jobs:
       - name: Build
         run: pnpm run build
 
-  # Test pyramid — unit » integration » e2e-in-process in one coverage run, plus the release-tooling
-  # unit tests.
+  # Test pyramid — unit » integration » e2e-in-process in one coverage run; the OpenAPI snapshot is
+  # the breaking-change contract test. Plus the frozen-fixture bridge contract tier and the
+  # release-tooling unit tests.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -73,6 +74,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Test @ 100% coverage
         run: pnpm run test:cov
+      - name: Bridge contract tests (frozen fixtures; no network)
+        run: pnpm run test:contract
       - name: Release-tooling tests
         run: pnpm run test:release
 

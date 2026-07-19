@@ -1,0 +1,15 @@
+{
+  "name": "propose-doomed-no-audio",
+  "output": {
+    "kind": "no-audio-files",
+    "reason": "no readable audio files under: /tmp/tmp.KYCeUjo8Hp/intake/empty",
+    "status": "doomed"
+  },
+  "provenance": {
+    "beets": "2.12.0",
+    "capturedAt": "2026-07-19",
+    "recorder": "test/contract/record-bridge-fixtures.sh",
+    "release": "22c9f6a3-0569-4c59-b551-cb4a26b0bc3f"
+  },
+  "verb": "propose"
+}

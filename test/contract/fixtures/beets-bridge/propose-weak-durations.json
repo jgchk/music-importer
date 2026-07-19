@@ -1,0 +1,41 @@
+{
+  "name": "propose-weak-durations",
+  "output": {
+    "candidates": [
+      {
+        "album": "Love Me Do",
+        "album_id": "22c9f6a3-0569-4c59-b551-cb4a26b0bc3f",
+        "artist": "The Beatles",
+        "data_source": "MusicBrainz",
+        "distance": 0.0606060606060606,
+        "penalties": [
+          {
+            "amount": 0.0606060606060606,
+            "name": "tracks"
+          }
+        ],
+        "tracks": [
+          {
+            "index": 1,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/weak/01 Love Me Do.mp3",
+            "title": "Love Me Do"
+          },
+          {
+            "index": 2,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/weak/02 P.S. I Love You.mp3",
+            "title": "P.S. I Love You"
+          }
+        ]
+      }
+    ],
+    "duplicates": [],
+    "status": "proposal"
+  },
+  "provenance": {
+    "beets": "2.12.0",
+    "capturedAt": "2026-07-19",
+    "recorder": "test/contract/record-bridge-fixtures.sh",
+    "release": "22c9f6a3-0569-4c59-b551-cb4a26b0bc3f"
+  },
+  "verb": "propose"
+}

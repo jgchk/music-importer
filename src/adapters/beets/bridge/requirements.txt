@@ -1,0 +1,6 @@
+# The pinned beets the bridge is contract-tested against (design D2). Upgrading this pin is a
+# deliberate event: re-record the contract fixtures (test/contract/README.md) and re-run the gate.
+# The extras cover the production plugin chain's Python dependencies (binaries — ffmpeg, fpcalc,
+# oggz-tools, opus-tools — are baked into the runtime image by the Dockerfile).
+beets[fetchart,embedart,chroma,lastgenre,lyrics,scrub]==2.12.0
+requests>=2.32.5
