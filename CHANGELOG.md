@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.4](https://github.com/jgchk/music-importer/compare/v0.1.3...v0.1.4) (2026-07-19)
+
+
+### Bug Fixes
+
+* **bridge:** reserve stdout exclusively for the contract JSON ([28bd814](https://github.com/jgchk/music-importer/commit/28bd8145375612c51043033b033208c8c2fce719))
+
 ## [0.1.3](https://github.com/jgchk/music-importer/compare/v0.1.2...v0.1.3) (2026-07-19)
 
 
