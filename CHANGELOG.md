@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.2](https://github.com/jgchk/music-importer/compare/v0.1.1...v0.1.2) (2026-07-19)
+
+
+### Features
+
+* **intake:** accept signed acquisition.fulfilled webhooks from music-downloader ([ce50576](https://github.com/jgchk/music-importer/commit/ce50576f8768fd66fe6681736efbed849fd9aa19))
+
 ## [0.1.1](https://github.com/jgchk/music-importer/compare/v0.1.0...v0.1.1) (2026-07-19)
 
 
