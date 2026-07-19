@@ -24,7 +24,10 @@ documented set of session keys (applied via config.set() BEFORE load_plugins(),
 which is the ordering confuse requires for the overlay to win) so no invocation
 can ever prompt, resume, or skip incrementally. The bootstrap also guarantees
 the MusicBrainz candidate source plugin is loaded even when a plugin list
-written for an older beets omits it. The beets version is pinned in
+written for an older beets omits it. The JSON goes to a private duplicate of
+stdout claimed before any beets work; fd 1 is repointed at stderr so nothing
+beets or its plugins print can corrupt the contract channel. The beets version
+is pinned in
 requirements.txt and the runtime image; the JSON emitted here is frozen by the
 contract-test fixtures under test/contract/.
 
@@ -57,9 +60,25 @@ SESSION_OVERLAY = {
 }
 
 
+# The contract channel: a private duplicate of real stdout, claimed by claim_stdout() before
+# any beets work. Beets was designed as a CLI and prints freely (plugin loads, migrations,
+# change diffs) — to fd 1 directly, not just sys.stdout, and so do subprocesses its plugins
+# spawn (ffmpeg, fpcalc). Repointing fd 1 at stderr diverts all of it to the diagnostic
+# stream, leaving this descriptor exclusively for the one JSON document per invocation.
+_contract_channel = None
+
+
+def claim_stdout():
+    global _contract_channel
+    _contract_channel = os.fdopen(os.dup(1), "w")
+    os.dup2(2, 1)
+    sys.stdout = sys.stderr
+
+
 def emit(payload):
-    json.dump(payload, sys.stdout)
-    sys.stdout.write("\n")
+    json.dump(payload, _contract_channel)
+    _contract_channel.write("\n")
+    _contract_channel.flush()
 
 
 def deep_set(view, overlay):
@@ -389,6 +408,7 @@ def build_parser():
 
 
 def main(argv):
+    claim_stdout()
     args = build_parser().parse_args(argv)
     try:
         config = bootstrap(args.config)

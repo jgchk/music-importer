@@ -44,9 +44,33 @@ library: /config/beets/library.db
 import:
   move: yes
 # Pre-plugin-era shape: no `musicbrainz` entry — the bridge must inject the source itself.
-# scrub keeps the list non-empty and offline.
-plugins: [scrub]
+# scrub keeps the list non-empty and offline; noisy (below) prints to stdout at load and
+# import time, proving plugin chatter cannot corrupt the bridge's JSON channel.
+plugins: [scrub, noisy]
+pluginpath: [/config/beets/plugins]
 YAML
+
+# A deliberately chatty plugin: real plugins (lastgenre diffs, db migrations) print to stdout
+# whenever they feel like it; this makes that reproducible and offline for every verb.
+mkdir -p .e2e-tmp/beets/plugins
+cat > .e2e-tmp/beets/plugins/noisy.py <<'PY'
+from beets.plugins import BeetsPlugin
+
+print("NOISY plugin-load stdout chatter")
+
+
+class NoisyPlugin(BeetsPlugin):
+    def __init__(self):
+        super().__init__()
+        self.register_listener("library_opened", self._opened)
+        self.register_listener("import_task_files", self._files)
+
+    def _opened(self, lib):
+        print("NOISY library_opened stdout chatter")
+
+    def _files(self, task, session):
+        print("NOISY import-files stdout chatter")
+PY
 
 # Generate the fixture intake with the image's own ffmpeg (no host ffmpeg needed). Each album
 # pins a real, stable MusicBrainz release whose durations the silent files reproduce (or mangle).
