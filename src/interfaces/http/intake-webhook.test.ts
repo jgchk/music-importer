@@ -130,12 +130,26 @@ describe('an accepted acquisition.fulfilled delivery', () => {
       directory: `${INTAKE_ROOT}/Radiohead - Kid A`,
       hints: { mbReleaseId: 'mb-release-1', artist: 'Radiohead', album: 'Kid A' },
       policy: wiring.deps.policy,
-      source: { acquisitionId: 'acq-1' },
+      source: {
+        acquisitionId: 'acq-1',
+        candidate: { username: 'peer1', path: 'peer1/x', sizeBytes: 1000 },
+      },
     });
     wiring.sync();
     expect(wiring.status.get(importIdFor(`${INTAKE_ROOT}/Radiohead - Kid A`))?.phase).toBe(
       'requested',
     );
+  });
+
+  it('submits without a retained candidate when the delivery carries none', async () => {
+    const wiring = await build();
+    const res = await deliver(fulfilledBody({ candidate: undefined }));
+
+    expect(res.statusCode).toBe(204);
+    expect(wiring.store.all()[0]!.event).toMatchObject({
+      type: 'ImportRequested',
+      source: { acquisitionId: 'acq-1', candidate: undefined },
+    });
   });
 
   it('converges a redelivered acquisition without probing the filesystem again', async () => {

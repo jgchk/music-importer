@@ -84,7 +84,7 @@ export function buildMcpServer(deps: UseCaseDeps, logger: Logger, version: strin
       {
         name: 'resolve_review',
         description:
-          'Resolve a pending review by verb (apply-candidate, supply-id, refresh-candidates, manual-tags, import-as-is, reject, accept, retry-enrichment).',
+          'Resolve a pending review by verb (apply-candidate, supply-id, refresh-candidates, manual-tags, import-as-is, reject, reject-and-retry-download, accept, retry-enrichment). reject deletes the files ("wrong thing to have"); reject-and-retry-download additionally records a release verdict so the delivering downloader retries with a different copy ("right thing, bad copy") — available only for downloader-delivered imports with a retained candidate, otherwise refused with NoRetainedCandidate.',
         inputSchema: z.toJSONSchema(resolveReviewArgsSchema),
       },
     ],

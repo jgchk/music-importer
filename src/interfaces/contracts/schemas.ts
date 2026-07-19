@@ -35,6 +35,7 @@ export const resolutionVerbSchema = z.enum([
   'manual-tags',
   'import-as-is',
   'reject',
+  'reject-and-retry-download',
   'accept',
   'retry-enrichment',
 ]);
@@ -144,6 +145,17 @@ export const resolveReviewRequestSchema = z.discriminatedUnion('verb', [
   z.object({ verb: z.literal('manual-tags'), tags: manualTagsSchema }),
   z.object({ verb: z.literal('import-as-is') }),
   z.object({ verb: z.literal('reject'), reason: z.string().min(1).optional() }),
+  z.object({
+    /**
+     * Reject (files deleted, import terminal `rejected`) AND record a release verdict so the
+     * delivering downloader retries the acquisition with a different copy. Only for imports that
+     * arrived from the downloader with a retained candidate; otherwise refused with
+     * `NoRetainedCandidate` (plain `reject` remains available). Use `reject` for "wrong thing to
+     * have", this verb for "right thing, bad copy".
+     */
+    verb: z.literal('reject-and-retry-download'),
+    reasons: z.array(z.string().min(1)).optional(),
+  }),
   z.object({ verb: z.literal('accept') }),
   z.object({ verb: z.literal('retry-enrichment') }),
 ]);
@@ -181,6 +193,11 @@ export const historyEntrySchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('applied'), location: z.string() }),
   z.object({ kind: z.literal('remediation-required'), failures: z.array(applyFailureSchema) }),
   z.object({ kind: z.literal('rejected'), reason: z.string(), filesDeleted: z.boolean() }),
+  z.object({
+    kind: z.literal('release-verdict-recorded'),
+    acquisitionId: z.string(),
+    reasons: z.array(z.string()),
+  }),
 ]);
 
 export const importStatusResponseSchema = z.object({

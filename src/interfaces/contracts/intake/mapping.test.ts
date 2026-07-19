@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { fulfilledToSubmission, rerootLocation } from './mapping.js';
 import type { AcquisitionFulfilledDto } from './schemas.js';
 
+const CANDIDATE = { username: 'peer1', path: 'peer1/Kid A [FLAC]', sizeBytes: 1000 };
+
 function fulfilled(
   target: Partial<AcquisitionFulfilledDto['data']['target']> = {},
 ): AcquisitionFulfilledDto {
@@ -17,17 +19,28 @@ function fulfilled(
         musicbrainzReleaseId: 'mb-release-1',
         ...target,
       },
+      candidate: CANDIDATE,
     },
   };
 }
 
 describe('fulfilledToSubmission', () => {
-  it('maps an album target to a fully hinted submission', () => {
+  it('maps an album target to a fully hinted submission carrying the candidate', () => {
     expect(fulfilledToSubmission(fulfilled())).toEqual({
       acquisitionId: 'acq-1',
       location: '/downloads/import/Radiohead - Kid A',
       hints: { mbReleaseId: 'mb-release-1', artist: 'Radiohead', album: 'Kid A' },
+      candidate: CANDIDATE,
     });
+  });
+
+  it('submits without a candidate when the delivery carried none', () => {
+    const dto = fulfilled();
+    const submission = fulfilledToSubmission({
+      ...dto,
+      data: { ...dto.data, candidate: undefined },
+    });
+    expect(submission.candidate).toBeUndefined();
   });
 
   it('drops the release-id hint when the sender has none', () => {

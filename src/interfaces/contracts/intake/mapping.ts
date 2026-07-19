@@ -1,6 +1,6 @@
 import { err, ok } from 'neverthrow';
 import type { Result } from 'neverthrow';
-import type { ImportHints } from '../../../domain/import/events.js';
+import type { DeliveredCandidate, ImportHints } from '../../../domain/import/events.js';
 import type { AcquisitionFulfilledDto } from './schemas.js';
 
 /**
@@ -16,10 +16,12 @@ export interface AcquisitionSubmission {
   /** The release directory in the SENDER's namespace, to be re-rooted before use. */
   readonly location: string;
   readonly hints: ImportHints;
+  /** The delivered candidate's identity, retained for a later release verdict (if readable). */
+  readonly candidate?: DeliveredCandidate;
 }
 
 export function fulfilledToSubmission(dto: AcquisitionFulfilledDto): AcquisitionSubmission {
-  const { acquisitionId, location, target } = dto.data;
+  const { acquisitionId, location, target, candidate } = dto.data;
   return {
     acquisitionId,
     location,
@@ -29,6 +31,7 @@ export function fulfilledToSubmission(dto: AcquisitionFulfilledDto): Acquisition
       // `title` names the release only for album targets; other kinds keep the search unpinned.
       album: target.type === 'album' ? target.title : undefined,
     },
+    candidate,
   };
 }
 

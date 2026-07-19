@@ -1,0 +1,21 @@
+{
+  "provenance": {
+    "recordedAt": "2026-07-19T19:14:28.395Z",
+    "schemaVersion": 1,
+    "note": "Rendered by src/interfaces/contracts/events/mapping.ts over a deterministic fixture history. FROZEN — never regenerate."
+  },
+  "event": {
+    "type": "release.verdict",
+    "timestamp": "2026-07-19T12:00:00.000Z",
+    "data": {
+      "acquisitionId": "acq-1",
+      "candidate": {
+        "username": "peer1",
+        "path": "peer1/Artist - Album [FLAC]",
+        "sizeBytes": 123456
+      },
+      "verdict": "rejected",
+      "reasons": ["corrupt rip", "transcoded from lossy"]
+    }
+  }
+}

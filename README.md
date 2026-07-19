@@ -13,8 +13,12 @@ verbs, auto-apply policy, and the HTTP + MCP surface on `/api/v1/imports`. Shipp
 `acquisition.fulfilled` events submit imports automatically (`POST /api/v1/webhooks/acquisitions`,
 Standard Webhooks signatures, durable idempotency by acquisition id; configure
 `INTAKE_WEBHOOK_SECRET` + `INTAKE_SOURCE_ROOT`, and point the downloader's `WEBHOOK_URLS` at the
-receiver). Follow-ups on deck: the quality-ladder duplicate policy, outbound verdict events, and
-notifications.
+receiver). Shipped since (`outbound-release-verdicts`): the outbound `release.verdict` publisher —
+resolving a downloader-delivered review with `reject-and-retry-download` deletes the files AND
+ships a signed verdict back to the downloader, which revives the acquisition for a better copy
+(configure `VERDICT_WEBHOOK_URLS` + `VERDICT_WEBHOOK_SECRET`, the same secret value the
+downloader's verdict receiver verifies with; producer-owned contract under `contracts/events/`).
+Follow-ups on deck: the quality-ladder duplicate policy and notifications.
 
 ## Running
 

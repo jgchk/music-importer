@@ -93,7 +93,7 @@ export async function registerIntakeWebhook(
           return reply.code(400).send({ error: 'InvalidPayload' });
         }
 
-        const { acquisitionId, location, hints } = fulfilledToSubmission(parsed.data);
+        const { acquisitionId, location, hints, candidate } = fulfilledToSubmission(parsed.data);
         // Durable convergence first: a redelivered acquisition no-ops even after the import
         // applied and the intake directory is long gone.
         const existing = findAcquisitionImport(deps, acquisitionId);
@@ -120,7 +120,7 @@ export async function registerIntakeWebhook(
         const result = await submitImport(deps, {
           directory,
           hints,
-          source: { acquisitionId },
+          source: { acquisitionId, candidate },
         });
         return result.match(
           ({ importId }) => {

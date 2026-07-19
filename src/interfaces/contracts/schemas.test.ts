@@ -51,6 +51,8 @@ describe('resolveReviewRequestSchema', () => {
     ],
     [{ verb: 'import-as-is' }],
     [{ verb: 'reject', reason: 'wrong rip' }],
+    [{ verb: 'reject-and-retry-download', reasons: ['corrupt rip', 'transcode'] }],
+    [{ verb: 'reject-and-retry-download' }],
     [{ verb: 'accept' }],
     [{ verb: 'retry-enrichment' }],
   ])('accepts %j', (payload) => {
@@ -65,6 +67,13 @@ describe('resolveReviewRequestSchema', () => {
         verb: 'manual-tags',
         tags: { albumArtist: 'A', album: 'B', tracks: [] },
       }).success,
+    ).toBe(false);
+  });
+
+  it('refuses an empty reason string on the retry verb (omit it instead)', () => {
+    expect(
+      resolveReviewRequestSchema.safeParse({ verb: 'reject-and-retry-download', reasons: [''] })
+        .success,
     ).toBe(false);
   });
 });

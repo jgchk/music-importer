@@ -164,6 +164,7 @@ exports[`OpenAPI contract > matches the published contract snapshot (version-nor
                                         "manual-tags",
                                         "import-as-is",
                                         "reject",
+                                        "reject-and-retry-download",
                                         "accept",
                                         "retry-enrichment",
                                       ],
@@ -250,6 +251,32 @@ exports[`OpenAPI contract > matches the published contract snapshot (version-nor
                                     "kind",
                                     "reason",
                                     "filesDeleted",
+                                  ],
+                                  "type": "object",
+                                },
+                                {
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "acquisitionId": {
+                                      "type": "string",
+                                    },
+                                    "kind": {
+                                      "enum": [
+                                        "release-verdict-recorded",
+                                      ],
+                                      "type": "string",
+                                    },
+                                    "reasons": {
+                                      "items": {
+                                        "type": "string",
+                                      },
+                                      "type": "array",
+                                    },
+                                  },
+                                  "required": [
+                                    "kind",
+                                    "acquisitionId",
+                                    "reasons",
                                   ],
                                   "type": "object",
                                 },
@@ -1264,6 +1291,7 @@ exports[`OpenAPI contract > matches the published contract snapshot (version-nor
                                   "manual-tags",
                                   "import-as-is",
                                   "reject",
+                                  "reject-and-retry-download",
                                   "accept",
                                   "retry-enrichment",
                                 ],
@@ -1350,6 +1378,32 @@ exports[`OpenAPI contract > matches the published contract snapshot (version-nor
                               "kind",
                               "reason",
                               "filesDeleted",
+                            ],
+                            "type": "object",
+                          },
+                          {
+                            "additionalProperties": false,
+                            "properties": {
+                              "acquisitionId": {
+                                "type": "string",
+                              },
+                              "kind": {
+                                "enum": [
+                                  "release-verdict-recorded",
+                                ],
+                                "type": "string",
+                              },
+                              "reasons": {
+                                "items": {
+                                  "type": "string",
+                                },
+                                "type": "array",
+                              },
+                            },
+                            "required": [
+                              "kind",
+                              "acquisitionId",
+                              "reasons",
                             ],
                             "type": "object",
                           },
@@ -1928,6 +1982,27 @@ exports[`OpenAPI contract > matches the published contract snapshot (version-nor
                       "verb": {
                         "enum": [
                           "reject",
+                        ],
+                        "type": "string",
+                      },
+                    },
+                    "required": [
+                      "verb",
+                    ],
+                    "type": "object",
+                  },
+                  {
+                    "properties": {
+                      "reasons": {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string",
+                        },
+                        "type": "array",
+                      },
+                      "verb": {
+                        "enum": [
+                          "reject-and-retry-download",
                         ],
                         "type": "string",
                       },

@@ -2,14 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   APPLIED,
   AUTO_APPLIED,
+  DELIVERED_CANDIDATE,
   DIRECTORY,
   FAILURE,
   MANUAL_TAGS,
   MATCH_REVIEW,
   POLICY,
   REMEDIATION,
+  SOURCE,
   appliedHistory,
   awaitingMatchReview,
+  awaitingReviewWithCandidate,
   candidate,
   proposed,
   remediationHistory,
@@ -142,6 +145,17 @@ describe('evolve — the tolerant, total fold', () => {
       expect(state).toMatchObject({ phase: 'awaiting-review', settled: { kind: 'reject' } });
     });
 
+    it('settles the review but holds the phase on reject-and-retry-download', () => {
+      const state = foldEvents([
+        ...awaitingReviewWithCandidate(),
+        resolved({ kind: 'reject-and-retry-download', reasons: ['corrupt rip'] }),
+      ]);
+      expect(state).toMatchObject({
+        phase: 'awaiting-review',
+        settled: { kind: 'reject-and-retry-download' },
+      });
+    });
+
     it('tolerates a remediation verb folded into a match review as a settlement', () => {
       const state = foldEvents([...awaitingMatchReview(), resolved({ kind: 'accept' })]);
       expect(state).toMatchObject({ phase: 'awaiting-review', settled: { kind: 'accept' } });
@@ -225,6 +239,37 @@ describe('evolve — the tolerant, total fold', () => {
     expect(evolve(initialState, REJECTED)).toBe(initialState);
     const applied = foldEvents(appliedHistory());
     expect(evolve(applied, REJECTED)).toBe(applied);
+  });
+
+  it('retains the submission source — delivered candidate included — across phases', () => {
+    const reviewing = foldEvents(awaitingReviewWithCandidate());
+    expect(reviewing).toMatchObject({ phase: 'awaiting-review', source: SOURCE });
+    const rejected = foldEvents([
+      ...awaitingReviewWithCandidate(),
+      resolved({ kind: 'reject-and-retry-download' }),
+      REJECTED,
+    ]);
+    expect(rejected).toMatchObject({ phase: 'rejected', source: SOURCE });
+  });
+
+  it('folds a legacy ImportRequested without a source to no retained candidate', () => {
+    const state = foldEvents(awaitingMatchReview());
+    expect('source' in state ? state.source : null).toBeUndefined();
+  });
+
+  it('ignores ReleaseVerdictRecorded — a record-only fact — in any phase', () => {
+    const verdict: ImportEvent = {
+      type: 'ReleaseVerdictRecorded',
+      acquisitionId: 'acq-1',
+      candidate: DELIVERED_CANDIDATE,
+      reasons: ['corrupt rip'],
+    };
+    const settledState = foldEvents([
+      ...awaitingReviewWithCandidate(),
+      resolved({ kind: 'reject-and-retry-download' }),
+    ]);
+    expect(evolve(settledState, verdict)).toBe(settledState);
+    expect(evolve(initialState, verdict)).toBe(initialState);
   });
 });
 

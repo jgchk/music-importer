@@ -17,12 +17,26 @@ export interface ImportPolicy {
 }
 
 /**
+ * The delivered candidate's identity as the sender published it — which peer's copy was
+ * downloaded. Retained so a later release verdict can echo the identity the sender's stale-guard
+ * compares against; `sizeBytes` is corroborating detail the sender may omit.
+ */
+export interface DeliveredCandidate {
+  readonly username: string;
+  readonly path: string;
+  readonly sizeBytes?: number;
+}
+
+/**
  * Provenance of an event-driven submission: the sender-side acquisition that deposited the
  * directory. Recorded on `ImportRequested` so redelivered acquisition events converge durably
- * (the projection indexes it across restarts) instead of relying on in-memory dedupe.
+ * (the projection indexes it across restarts) instead of relying on in-memory dedupe. The
+ * delivered candidate rides along when the event carried one — without it the import simply
+ * cannot emit a release verdict.
  */
 export interface ImportSource {
   readonly acquisitionId: string;
+  readonly candidate?: DeliveredCandidate;
 }
 
 /**
@@ -119,6 +133,7 @@ export type Resolution =
   | { readonly kind: 'manual-tags'; readonly tags: ManualTags }
   | { readonly kind: 'import-as-is' }
   | { readonly kind: 'reject'; readonly reason?: string }
+  | { readonly kind: 'reject-and-retry-download'; readonly reasons?: readonly string[] }
   | { readonly kind: 'accept' }
   | { readonly kind: 'retry-enrichment' };
 
@@ -153,6 +168,17 @@ export type ImportEvent =
   | { readonly type: 'ReviewResolved'; readonly resolution: Resolution }
   | { readonly type: 'ImportApplied'; readonly location: string }
   | { readonly type: 'RemediationRequired'; readonly failures: readonly ApplyFailure[] }
-  | { readonly type: 'ImportRejected'; readonly reason: string; readonly filesDeleted: boolean };
+  | { readonly type: 'ImportRejected'; readonly reason: string; readonly filesDeleted: boolean }
+  | {
+      /**
+       * The delivered release failed external validation (reject-and-retry-download): the fact the
+       * outbound publisher ships to the sender so it can revive the acquisition. Minted in the same
+       * decision as the rejection's `ReviewResolved`; drives no effect and no state change.
+       */
+      readonly type: 'ReleaseVerdictRecorded';
+      readonly acquisitionId: string;
+      readonly candidate: DeliveredCandidate;
+      readonly reasons: readonly string[];
+    };
 
 export type ImportEventType = ImportEvent['type'];

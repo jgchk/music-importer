@@ -1,5 +1,6 @@
 import type {
   ApplyFailure,
+  DeliveredCandidate,
   DuplicateIncumbent,
   ImportEvent,
   ImportHints,
@@ -15,6 +16,15 @@ import type {
 export const POLICY: ImportPolicy = { autoApplyThreshold: 0.1 };
 export const DIRECTORY = '/intake/Artist - Album';
 export const HINTS: ImportHints = { mbReleaseId: 'mb-release-1', artist: 'Artist', album: 'Album' };
+
+export const DELIVERED_CANDIDATE: DeliveredCandidate = {
+  username: 'peer1',
+  path: 'peer1/Artist - Album [FLAC]',
+  sizeBytes: 123_456,
+};
+
+/** Provenance of a downloader-delivered import, retained candidate included. */
+export const SOURCE: ImportSource = { acquisitionId: 'acq-1', candidate: DELIVERED_CANDIDATE };
 
 export function candidate(overrides: Partial<ProposedCandidate> = {}): ProposedCandidate {
   return {
@@ -83,6 +93,11 @@ export const REMEDIATION: ImportEvent = { type: 'RemediationRequired', failures:
 /** A history that lands in `awaiting-review` (weak match) with one listed candidate. */
 export function awaitingMatchReview(): ImportEvent[] {
   return [requested(), proposed([candidate({ distance: 0.5 })]), MATCH_REVIEW];
+}
+
+/** As above, but downloader-delivered with a retained candidate (verdict-capable). */
+export function awaitingReviewWithCandidate(): ImportEvent[] {
+  return [requested({ source: SOURCE }), proposed([candidate({ distance: 0.5 })]), MATCH_REVIEW];
 }
 
 /** A history that auto-applied and landed `applied`. */

@@ -57,6 +57,9 @@ describe('resolutionToDomain', () => {
       kind: 'reject',
       reason: 'r',
     });
+    expect(
+      resolutionToDomain({ verb: 'reject-and-retry-download', reasons: ['corrupt rip'] }),
+    ).toEqual({ kind: 'reject-and-retry-download', reasons: ['corrupt rip'] });
     expect(resolutionToDomain({ verb: 'accept' })).toEqual({ kind: 'accept' });
     expect(resolutionToDomain({ verb: 'retry-enrichment' })).toEqual({ kind: 'retry-enrichment' });
   });

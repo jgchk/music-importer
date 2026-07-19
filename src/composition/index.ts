@@ -7,6 +7,12 @@ import { InProcessEventBus } from '../adapters/sqlite/event-bus.js';
 import { SqliteCheckpointStore, SqliteEventStore } from '../adapters/sqlite/event-store.js';
 import { openEventDatabase } from '../adapters/sqlite/schema.js';
 import { UpcasterRegistry } from '../adapters/sqlite/upcaster.js';
+import { fetchHttpClient } from '../adapters/support/http.js';
+import { WebhookDispatcher } from '../adapters/webhook/dispatcher.js';
+import {
+  DEFAULT_WEBHOOK_RETRY,
+  WebhookPublisher,
+} from '../application/events/webhook-publisher.js';
 import { interpretEffect } from '../application/import/interpreter.js';
 import type { InterpreterDeps } from '../application/import/interpreter.js';
 import { Reactor } from '../application/import/reactor.js';
@@ -14,6 +20,7 @@ import type { UseCaseDeps } from '../application/import/use-cases.js';
 import { createLogger } from '../application/logging/logger.js';
 import type { Clock } from '../application/ports/system-ports.js';
 import { ImportStatusProjection } from '../application/projections/read-models.js';
+import { publishedEventMapping } from '../interfaces/contracts/events/mapping.js';
 import { buildHttpApp } from '../interfaces/http/app.js';
 import { loadConfig } from './config.js';
 import { readAppVersion } from './version.js';
@@ -87,6 +94,35 @@ async function main(): Promise<void> {
   });
   await reactor.start();
 
+  // --- The outbound verdict publisher (config-dormant): one more checkpointed consumer of the
+  //     event store (the store IS the outbox), delivering `release.verdict` events to each
+  //     subscriber independently, in order, at-least-once. Absent VERDICT_WEBHOOK_URLS, nothing
+  //     here exists. -----------------------------------------------------------------------------
+  let publisher: WebhookPublisher | undefined;
+  if (config.verdictWebhooks === undefined) {
+    logger.info('verdict webhook publisher dormant (no VERDICT_WEBHOOK_URLS)');
+  } else {
+    const dispatcher = new WebhookDispatcher(logger, fetchHttpClient, clock, {
+      secret: config.verdictWebhooks.secret,
+    });
+    publisher = new WebhookPublisher({
+      store,
+      checkpoints,
+      bus,
+      logger,
+      mapping: publishedEventMapping,
+      deliver: dispatcher,
+      subscribers: config.verdictWebhooks.urls,
+      retry: DEFAULT_WEBHOOK_RETRY,
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    });
+    await publisher.start();
+    logger.info(
+      { subscribers: config.verdictWebhooks.urls.length },
+      'verdict webhook publisher active',
+    );
+  }
+
   // --- Inbound interfaces: one HTTP server serves both REST and MCP (streamable HTTP) ----------
   const deps: UseCaseDeps = {
     store,
@@ -130,6 +166,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     logger.info({ signal }, 'shutting down');
     reactor.stop();
+    publisher?.stop();
     await httpApp.close();
     db.close();
     process.exit(0);

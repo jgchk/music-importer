@@ -20,6 +20,7 @@
     "test:release": "vitest run --config scripts/release/vitest.config.ts",
     "test:e2e": "bash test/e2e/run.sh",
     "version:prep": "tsx scripts/release/version-prep.ts",
+    "contracts:events": "tsx scripts/contracts/generate-event-schemas.ts",
     "check": "pnpm run format && pnpm run lint && pnpm run typecheck && pnpm run build && pnpm run test:cov && pnpm run test:contract && pnpm run test:release",
     "test:contract": "vitest run --config test/contract/vitest.config.ts"
   },

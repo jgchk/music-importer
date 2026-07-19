@@ -117,6 +117,16 @@ describe('manual import end to end', () => {
     const waiting = await waitForStatus(importId, (body) => body.status === 'awaiting-review');
     expect(['match-review', 'no-match']).toContain(waiting.review?.kind);
 
+    // A manual import retains no delivered candidate: the retry verb is refused precisely,
+    // and plain reject remains available.
+    const refused = await fetch(`${BASE_URL}/api/v1/imports/${importId}/review`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ verb: 'reject-and-retry-download', reasons: ['bad copy'] }),
+    });
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: 'NoRetainedCandidate' });
+
     await resolve(importId, { verb: 'reject', reason: 'not worth keeping' });
     const done = await waitForStatus(importId, (body) => body.status === 'rejected');
 

@@ -49,6 +49,7 @@ describe('acquisitionFulfilledSchema — the tolerant reader', () => {
           title: 'Kid A',
           musicbrainzReleaseId: 'mb-release-1',
         },
+        candidate: { username: 'peer1', path: 'peer1/x', sizeBytes: 1000 },
       },
     });
   });
@@ -80,6 +81,25 @@ describe('acquisitionFulfilledSchema — the tolerant reader', () => {
     expect(
       acquisitionFulfilledSchema.parse(absent).data.target.musicbrainzReleaseId,
     ).toBeUndefined();
+  });
+
+  it('tolerates an absent, size-less, or malformed candidate (only verdicts need it)', () => {
+    const absent = fulfilledPayload();
+    delete (absent['data'] as Record<string, unknown>)['candidate'];
+    expect(acquisitionFulfilledSchema.parse(absent).data.candidate).toBeUndefined();
+
+    const sizeless = fulfilledPayload();
+    delete ((sizeless['data'] as Record<string, unknown>)['candidate'] as Record<string, unknown>)[
+      'sizeBytes'
+    ];
+    expect(acquisitionFulfilledSchema.parse(sizeless).data.candidate).toEqual({
+      username: 'peer1',
+      path: 'peer1/x',
+    });
+
+    const malformed = fulfilledPayload();
+    (malformed['data'] as Record<string, unknown>)['candidate'] = { username: 42 };
+    expect(acquisitionFulfilledSchema.parse(malformed).data.candidate).toBeUndefined();
   });
 
   it('rejects a payload missing the fields the importer actually needs', () => {

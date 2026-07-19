@@ -65,6 +65,9 @@ export function react(event: ImportEvent, state: ImportState): readonly Effect[]
             ? [{ type: 'Propose', directory: state.directory }]
             : [];
         case 'reject':
+        case 'reject-and-retry-download':
+          // Both rejection verbs owe the same intake hygiene; the verdict itself is a record-only
+          // fact the outbound publisher consumes, never an effect here.
           return state.phase === 'awaiting-review'
             ? [{ type: 'DeleteIntake', directory: state.directory }]
             : [];
@@ -83,6 +86,7 @@ export function react(event: ImportEvent, state: ImportState): readonly Effect[]
     case 'ImportApplied':
     case 'RemediationRequired':
     case 'ImportRejected':
+    case 'ReleaseVerdictRecorded':
       return [];
   }
 }

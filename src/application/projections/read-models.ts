@@ -29,7 +29,12 @@ export type StatusHistoryEntry =
   | { readonly kind: 'review-resolved'; readonly resolution: ResolutionKind }
   | { readonly kind: 'applied'; readonly location: string }
   | { readonly kind: 'remediation-required'; readonly failures: readonly ApplyFailure[] }
-  | { readonly kind: 'rejected'; readonly reason: string; readonly filesDeleted: boolean };
+  | { readonly kind: 'rejected'; readonly reason: string; readonly filesDeleted: boolean }
+  | {
+      readonly kind: 'release-verdict-recorded';
+      readonly acquisitionId: string;
+      readonly reasons: readonly string[];
+    };
 
 export interface ImportStatusView {
   readonly importId: string;
@@ -70,6 +75,12 @@ function historyEntry(event: ImportEvent): StatusHistoryEntry {
       return { kind: 'remediation-required', failures: event.failures };
     case 'ImportRejected':
       return { kind: 'rejected', reason: event.reason, filesDeleted: event.filesDeleted };
+    case 'ReleaseVerdictRecorded':
+      return {
+        kind: 'release-verdict-recorded',
+        acquisitionId: event.acquisitionId,
+        reasons: event.reasons,
+      };
   }
 }
 

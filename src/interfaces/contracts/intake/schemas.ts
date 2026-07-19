@@ -14,6 +14,20 @@ export const intakeEventEnvelopeSchema = z.object({
 });
 
 /**
+ * The delivered candidate's identity, read tolerantly: only a later, optional release verdict
+ * needs it, so an absent or malformed candidate degrades to `undefined` (`catch`) — intake must
+ * never start failing on it.
+ */
+const deliveredCandidateSchema = z
+  .object({
+    username: z.string(),
+    path: z.string(),
+    sizeBytes: z.number().optional(),
+  })
+  .optional()
+  .catch(undefined);
+
+/**
  * The `acquisition.fulfilled` fields the importer consumes. `target.type` is an open string (the
  * sender may add target kinds); `musicbrainzReleaseId` tolerates null or absent. `data.location`
  * is an absolute directory in the SENDER's filesystem namespace — re-rooted before use.
@@ -29,6 +43,7 @@ export const acquisitionFulfilledSchema = z.object({
       title: z.string().min(1),
       musicbrainzReleaseId: z.string().min(1).nullish(),
     }),
+    candidate: deliveredCandidateSchema,
   }),
 });
 

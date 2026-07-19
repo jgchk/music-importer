@@ -15,7 +15,9 @@ export type DomainError =
   | { readonly kind: 'UnknownImport' }
   | { readonly kind: 'NoOpenReview' }
   | { readonly kind: 'InvalidResolution'; readonly detail: string }
-  | { readonly kind: 'UnknownCandidate'; readonly candidate: string };
+  | { readonly kind: 'UnknownCandidate'; readonly candidate: string }
+  /** reject-and-retry-download needs a retained delivered candidate; this import has none. */
+  | { readonly kind: 'NoRetainedCandidate' };
 
 type Decision = Result<readonly ImportEvent[], DomainError>;
 
@@ -74,6 +76,21 @@ function decideResolutionForReview(state: AwaitingReviewState, resolution: Resol
     );
     if (!known)
       return err({ kind: 'UnknownCandidate', candidate: candidateRefKey(resolution.ref) });
+  }
+  if (resolution.kind === 'reject-and-retry-download') {
+    // The verdict must echo the identity the sender fulfilled with (its stale-guard compares it);
+    // without a retained candidate the verb is refused precisely — plain reject stays available.
+    const source = state.source;
+    if (source?.candidate === undefined) return err({ kind: 'NoRetainedCandidate' });
+    return ok([
+      { type: 'ReviewResolved', resolution },
+      {
+        type: 'ReleaseVerdictRecorded',
+        acquisitionId: source.acquisitionId,
+        candidate: source.candidate,
+        reasons: resolution.reasons ?? [],
+      },
+    ]);
   }
   return ok([{ type: 'ReviewResolved', resolution }]);
 }
@@ -146,9 +163,18 @@ export function decide(command: ImportCommand, state: ImportState): Decision {
         },
       ]);
     case 'RecordIntakeDeleted': {
-      if (state.phase !== 'awaiting-review' || state.settled?.kind !== 'reject') return NOTHING;
-      const reason = state.settled.reason ?? 'rejected by review';
-      return ok([{ type: 'ImportRejected', reason, filesDeleted: true }]);
+      if (state.phase !== 'awaiting-review') return NOTHING;
+      const settled = state.settled;
+      if (settled?.kind === 'reject') {
+        const reason = settled.reason ?? 'rejected by review';
+        return ok([{ type: 'ImportRejected', reason, filesDeleted: true }]);
+      }
+      if (settled?.kind === 'reject-and-retry-download') {
+        const reasons = settled.reasons ?? [];
+        const reason = reasons.length > 0 ? reasons.join('; ') : 'rejected by review';
+        return ok([{ type: 'ImportRejected', reason, filesDeleted: true }]);
+      }
+      return NOTHING;
     }
     case 'RecordDoomed':
       // A permanent effect failure dooms the import (D7): terminal `rejected`, files untouched.

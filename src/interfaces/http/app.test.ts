@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
-import { candidate } from '../../domain/import/__fixtures__/import-fixtures.js';
-import { importIdFor } from '../../application/import/use-cases.js';
+import { SOURCE, candidate } from '../../domain/import/__fixtures__/import-fixtures.js';
+import { importIdFor, submitImport } from '../../application/import/use-cases.js';
 import { infraError } from '../../application/ports/errors.js';
 import { silentLogger, testWiring } from '../__fixtures__/wiring.js';
 import type { TestWiring } from '../__fixtures__/wiring.js';
@@ -189,6 +189,56 @@ describe('POST /api/v1/imports/:id/review', () => {
     expect(res.json()).toEqual({ error: 'InvalidResolution' });
   });
 
+  it('refuses reject-and-retry-download on an import without a retained candidate (409)', async () => {
+    const wiring = await build();
+    const importId = await submitAndPropose(wiring); // manual submission: no source, no candidate
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/imports/${importId}/review`,
+      payload: { verb: 'reject-and-retry-download', reasons: ['corrupt rip'] },
+    });
+    expect(res.statusCode).toBe(409);
+    expect(res.json()).toEqual({ error: 'NoRetainedCandidate' });
+
+    // Plain reject still resolves the review normally.
+    const reject = await app.inject({
+      method: 'POST',
+      url: `/api/v1/imports/${importId}/review`,
+      payload: { verb: 'reject' },
+    });
+    expect(reject.statusCode).toBe(202);
+  });
+
+  it('records the verdict beside the rejection for a downloader-delivered import', async () => {
+    const wiring = await build();
+    // A downloader-intake submission: the source carries the retained candidate.
+    const submitted = await submitImport(wiring.deps, { directory: INTAKE, source: SOURCE });
+    const importId = submitted._unsafeUnwrap().importId;
+    await wiring.dispatch(importId, { type: 'Propose', directory: INTAKE });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/imports/${importId}/review`,
+      payload: { verb: 'reject-and-retry-download', reasons: ['corrupt rip'] },
+    });
+    expect(res.statusCode).toBe(202);
+
+    wiring.sync();
+    const status = await app.inject({ method: 'GET', url: `/api/v1/imports/${importId}` });
+    expect(status.statusCode).toBe(200);
+    const history = status.json<{ history: { kind: string }[] }>().history;
+    expect(history).toContainEqual({
+      kind: 'review-resolved',
+      resolution: 'reject-and-retry-download',
+    });
+    expect(history).toContainEqual({
+      kind: 'release-verdict-recorded',
+      acquisitionId: SOURCE.acquisitionId,
+      reasons: ['corrupt rip'],
+    });
+  });
+
   it('rejects a malformed resolution with a schema-driven 400', async () => {
     const wiring = await build();
     const importId = await submitAndPropose(wiring);
@@ -243,6 +293,7 @@ describe('statusForCommandError', () => {
     expect(statusForCommandError(infraError('x', 'boom'))).toBe(500);
     expect(statusForCommandError({ kind: 'UnknownImport' })).toBe(404);
     expect(statusForCommandError({ kind: 'NoOpenReview' })).toBe(409);
+    expect(statusForCommandError({ kind: 'NoRetainedCandidate' })).toBe(409);
     expect(
       statusForCommandError({ kind: 'ConcurrencyConflict', streamId: 's', expectedVersion: 0 }),
     ).toBe(409);

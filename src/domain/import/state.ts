@@ -4,6 +4,7 @@ import type {
   ImportEvent,
   ImportHints,
   ImportPolicy,
+  ImportSource,
   ProposedCandidate,
   Resolution,
   ReviewCause,
@@ -30,6 +31,8 @@ interface Requested {
   readonly directory: string;
   readonly hints?: ImportHints;
   readonly policy: ImportPolicy;
+  /** Provenance of an event-driven submission, incl. the retained delivered candidate (if any). */
+  readonly source?: ImportSource;
 }
 
 /** The remediation review riding on an applied import (D7). */
@@ -91,7 +94,12 @@ export function isTerminal(state: ImportState): boolean {
 }
 
 function requestedOf(state: Exclude<ImportState, EmptyState>): Requested {
-  return { directory: state.directory, hints: state.hints, policy: state.policy };
+  return {
+    directory: state.directory,
+    hints: state.hints,
+    policy: state.policy,
+    source: state.source,
+  };
 }
 
 /** The apply mode a resolution implies, or undefined for the verbs that do not apply. */
@@ -110,6 +118,7 @@ function modeOfResolution(resolution: Resolution): ApplyMode | undefined {
     case 'supply-id':
     case 'refresh-candidates':
     case 'reject':
+    case 'reject-and-retry-download':
     case 'accept':
     case 'retry-enrichment':
       return undefined;
@@ -132,9 +141,9 @@ function evolveResolved(state: AwaitingReviewState, resolution: Resolution): Imp
   if (resolution.kind === 'refresh-candidates') {
     return { phase: 'proposing', ...requestedOf(state), candidates: state.candidates };
   }
-  // Reject: the review is settled; the intake deletion is still owed, so the phase holds until
-  // `ImportRejected` records the outcome. (`accept`/`retry-enrichment` never reach here — `decide`
-  // refuses them outside an open remediation.)
+  // Reject / reject-and-retry-download: the review is settled; the intake deletion is still owed,
+  // so the phase holds until `ImportRejected` records the outcome. (`accept`/`retry-enrichment`
+  // never reach here — `decide` refuses them outside an open remediation.)
   return { ...state, settled: resolution };
 }
 
@@ -149,6 +158,7 @@ export function evolve(state: ImportState, event: ImportEvent): ImportState {
         directory: event.directory,
         hints: event.hints,
         policy: event.policy,
+        source: event.source,
         candidates: [],
       };
     case 'CandidatesProposed':
@@ -214,6 +224,9 @@ export function evolve(state: ImportState, event: ImportEvent): ImportState {
         reason: event.reason,
         filesDeleted: event.filesDeleted,
       };
+    case 'ReleaseVerdictRecorded':
+      // A record-only fact for the outbound publisher: it changes no import state.
+      return state;
   }
 }
 

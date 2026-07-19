@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   APPLIED,
   AUTO_APPLIED,
+  DELIVERED_CANDIDATE,
   DIRECTORY,
   FAILURE,
   HINTS,
   MATCH_REVIEW,
+  SOURCE,
   appliedHistory,
   awaitingMatchReview,
+  awaitingReviewWithCandidate,
   candidate,
   proposed,
   remediationHistory,
@@ -72,6 +75,29 @@ describe('projectStatus', () => {
   it('records remediation entries', () => {
     const view = projectStatus('imp-1', remediationHistory());
     expect(view.history).toContainEqual({ kind: 'remediation-required', failures: [FAILURE] });
+  });
+
+  it('narrates a recorded release verdict beside its rejection', () => {
+    const history = [
+      ...awaitingReviewWithCandidate(),
+      resolved({ kind: 'reject-and-retry-download', reasons: ['corrupt rip'] }),
+      {
+        type: 'ReleaseVerdictRecorded',
+        acquisitionId: SOURCE.acquisitionId,
+        candidate: DELIVERED_CANDIDATE,
+        reasons: ['corrupt rip'],
+      } as const,
+    ];
+    const view = projectStatus('imp-1', history);
+    expect(view.history).toContainEqual({
+      kind: 'review-resolved',
+      resolution: 'reject-and-retry-download',
+    });
+    expect(view.history).toContainEqual({
+      kind: 'release-verdict-recorded',
+      acquisitionId: 'acq-1',
+      reasons: ['corrupt rip'],
+    });
   });
 });
 

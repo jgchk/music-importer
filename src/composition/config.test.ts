@@ -92,4 +92,46 @@ describe('loadConfig', () => {
     });
     expect(result._unsafeUnwrapErr()).toContain('INTAKE_SOURCE_ROOT');
   });
+
+  it('leaves the verdict publisher dormant when no URLs (or only blanks) are configured', () => {
+    expect(loadConfig(REQUIRED)._unsafeUnwrap().verdictWebhooks).toBeUndefined();
+    expect(
+      loadConfig({ ...REQUIRED, VERDICT_WEBHOOK_URLS: ' , ' })._unsafeUnwrap().verdictWebhooks,
+    ).toBeUndefined();
+  });
+
+  it('activates the verdict publisher from comma-separated URLs plus a usable secret', () => {
+    const secret = `whsec_${Buffer.from('verdict-signing-key').toString('base64')}`;
+    const config = loadConfig({
+      ...REQUIRED,
+      VERDICT_WEBHOOK_URLS:
+        'http://downloader:3000/api/v1/webhooks/verdicts, https://b.example/hook',
+      VERDICT_WEBHOOK_SECRET: secret,
+    })._unsafeUnwrap();
+    expect(config.verdictWebhooks).toEqual({
+      urls: ['http://downloader:3000/api/v1/webhooks/verdicts', 'https://b.example/hook'],
+      secret,
+    });
+  });
+
+  it('fails loudly when URLs are configured without a secret (unsigned publishing is impossible)', () => {
+    const result = loadConfig({
+      ...REQUIRED,
+      VERDICT_WEBHOOK_URLS: 'http://downloader:3000/api/v1/webhooks/verdicts',
+    });
+    expect(result._unsafeUnwrapErr()).toContain('VERDICT_WEBHOOK_SECRET');
+  });
+
+  it('rejects an unparseable subscriber URL and a malformed verdict secret', () => {
+    expect(
+      loadConfig({ ...REQUIRED, VERDICT_WEBHOOK_URLS: 'not a url' })._unsafeUnwrapErr(),
+    ).toContain('VERDICT_WEBHOOK_URLS');
+    expect(
+      loadConfig({
+        ...REQUIRED,
+        VERDICT_WEBHOOK_URLS: 'http://downloader:3000/api/v1/webhooks/verdicts',
+        VERDICT_WEBHOOK_SECRET: 'whsec_!!!not-base64!!!',
+      })._unsafeUnwrapErr(),
+    ).toContain('VERDICT_WEBHOOK_SECRET');
+  });
 });

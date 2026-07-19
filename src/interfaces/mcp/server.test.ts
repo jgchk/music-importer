@@ -136,6 +136,21 @@ describe('MCP server', () => {
     expect(result.content[0]!.text).toBe('UnknownImport');
   });
 
+  it('refuses reject-and-retry-download without a retained candidate — same shape as HTTP', async () => {
+    const importId = await submit(); // manual submission: no source, no candidate
+
+    const result = (await client.callTool({
+      name: 'resolve_review',
+      arguments: {
+        id: importId,
+        resolution: { verb: 'reject-and-retry-download', reasons: ['corrupt rip'] },
+      },
+    })) as CallToolResult;
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toBe('NoRetainedCandidate');
+  });
+
   it('reports an unknown tool as a tool error', async () => {
     const result = (await client.callTool({ name: 'nope', arguments: {} })) as CallToolResult;
 

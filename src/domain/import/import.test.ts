@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   APPLIED,
   AUTO_APPLIED,
+  DELIVERED_CANDIDATE,
   DIRECTORY,
   FAILURE,
   HINTS,
@@ -9,8 +10,10 @@ import {
   MANUAL_TAGS,
   MATCH_REVIEW,
   POLICY,
+  SOURCE,
   appliedHistory,
   awaitingMatchReview,
+  awaitingReviewWithCandidate,
   candidate,
   proposed,
   remediationHistory,
@@ -51,6 +54,13 @@ describe('submission', () => {
       type: 'ImportRequested',
       source: { acquisitionId: 'acq-1' },
     });
+  });
+
+  it('stamps the delivered candidate onto the source when the sender carried one', () => {
+    const events = given([])
+      .execute({ ...SUBMIT, source: SOURCE })
+      ._unsafeUnwrap();
+    expect(events[0]).toMatchObject({ type: 'ImportRequested', source: SOURCE });
   });
 
   it('converges on a duplicate submission while the import is live', () => {
@@ -273,6 +283,69 @@ describe('resolving a review', () => {
     expect(error).toMatchObject({ kind: 'InvalidResolution' });
   });
 
+  it('mints the release verdict beside the rejection on reject-and-retry-download', () => {
+    const resolution = {
+      kind: 'reject-and-retry-download',
+      reasons: ['corrupt rip', 'transcode'],
+    } as const;
+    const events = given(awaitingReviewWithCandidate())
+      .execute(resolve(resolution))
+      ._unsafeUnwrap();
+    expect(events).toEqual([
+      { type: 'ReviewResolved', resolution },
+      {
+        type: 'ReleaseVerdictRecorded',
+        acquisitionId: SOURCE.acquisitionId,
+        candidate: DELIVERED_CANDIDATE,
+        reasons: ['corrupt rip', 'transcode'],
+      },
+    ]);
+  });
+
+  it('defaults the verdict reasons to an empty list when none are given', () => {
+    const events = given(awaitingReviewWithCandidate())
+      .execute(resolve({ kind: 'reject-and-retry-download' }))
+      ._unsafeUnwrap();
+    expect(events[1]).toMatchObject({ type: 'ReleaseVerdictRecorded', reasons: [] });
+  });
+
+  it('refuses reject-and-retry-download without a retained candidate', () => {
+    // A manual import has no source at all; a legacy intake import has a source but no candidate.
+    expect(
+      given(awaitingMatchReview())
+        .execute(resolve({ kind: 'reject-and-retry-download' }))
+        ._unsafeUnwrapErr(),
+    ).toEqual({ kind: 'NoRetainedCandidate' });
+    const legacy = [
+      requested({ source: { acquisitionId: 'acq-legacy' } }),
+      proposed([candidate({ distance: 0.5 })]),
+      MATCH_REVIEW,
+    ];
+    expect(
+      given(legacy)
+        .execute(resolve({ kind: 'reject-and-retry-download' }))
+        ._unsafeUnwrapErr(),
+    ).toEqual({ kind: 'NoRetainedCandidate' });
+    // Plain reject still resolves the same review normally.
+    expect(
+      given(legacy)
+        .execute(resolve({ kind: 'reject' }))
+        ._unsafeUnwrap(),
+    ).toEqual([{ type: 'ReviewResolved', resolution: { kind: 'reject' } }]);
+  });
+
+  it('no-ops a redelivered reject-and-retry-download of a settled review', () => {
+    const history = [
+      ...awaitingReviewWithCandidate(),
+      resolved({ kind: 'reject-and-retry-download' }),
+    ];
+    expect(
+      given(history)
+        .execute(resolve({ kind: 'reject-and-retry-download' }))
+        ._unsafeUnwrap(),
+    ).toEqual([]);
+  });
+
   it('no-ops a redelivered resolution of a settled review', () => {
     const history = [...awaitingMatchReview(), resolved({ kind: 'reject' })];
     expect(
@@ -341,6 +414,31 @@ describe('recording rejection outcomes', () => {
     const history = [...awaitingMatchReview(), resolved({ kind: 'reject' })];
     const events = given(history).execute({ type: 'RecordIntakeDeleted' })._unsafeUnwrap();
     expect(events[0]).toMatchObject({ reason: 'rejected by review' });
+  });
+
+  it('records the rejection with joined reasons after a reject-and-retry-download', () => {
+    const history = [
+      ...awaitingReviewWithCandidate(),
+      resolved({ kind: 'reject-and-retry-download', reasons: ['corrupt rip', 'transcode'] }),
+    ];
+    const events = given(history).execute({ type: 'RecordIntakeDeleted' })._unsafeUnwrap();
+    expect(events).toEqual([
+      { type: 'ImportRejected', reason: 'corrupt rip; transcode', filesDeleted: true },
+    ]);
+  });
+
+  it('defaults the rejection reason when the retry verb carried no reasons', () => {
+    const history = [
+      ...awaitingReviewWithCandidate(),
+      resolved({ kind: 'reject-and-retry-download' }),
+    ];
+    const events = given(history).execute({ type: 'RecordIntakeDeleted' })._unsafeUnwrap();
+    expect(events[0]).toMatchObject({ reason: 'rejected by review' });
+  });
+
+  it('drops an intake-deletion report when the review settled on a non-rejecting verb', () => {
+    const history = [...awaitingMatchReview(), resolved({ kind: 'accept' })];
+    expect(given(history).execute({ type: 'RecordIntakeDeleted' })._unsafeUnwrap()).toEqual([]);
   });
 
   it('drops a stale intake-deletion report', () => {
@@ -459,6 +557,30 @@ describe('react — the reflex', () => {
 
   it('fires nothing for reject against a mismatched state', () => {
     expect(given([]).reactTo(resolved({ kind: 'reject' }))).toEqual([]);
+  });
+
+  it('fires DeleteIntake on reject-and-retry-download — same hygiene as reject', () => {
+    const resolution = resolved({ kind: 'reject-and-retry-download', reasons: ['corrupt rip'] });
+    const history = [...awaitingReviewWithCandidate(), resolution];
+    expect(given(history).reactTo(resolution)).toEqual([
+      { type: 'DeleteIntake', directory: DIRECTORY },
+    ]);
+    expect(given([]).reactTo(resolution)).toEqual([]);
+  });
+
+  it('fires nothing on ReleaseVerdictRecorded — the publisher consumes it, not the reactor', () => {
+    const verdict = {
+      type: 'ReleaseVerdictRecorded',
+      acquisitionId: SOURCE.acquisitionId,
+      candidate: DELIVERED_CANDIDATE,
+      reasons: [],
+    } as const;
+    const history = [
+      ...awaitingReviewWithCandidate(),
+      resolved({ kind: 'reject-and-retry-download' }),
+      verdict,
+    ];
+    expect(given(history).reactTo(verdict)).toEqual([]);
   });
 
   it('fires an in-place Apply at the library location on retry-enrichment', () => {

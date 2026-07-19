@@ -48,6 +48,11 @@ describe('the recorded acquisition.fulfilled fixture', () => {
           title: 'Kid A',
           musicbrainzReleaseId: '6e335887-60ba-38f0-95af-fae8774d20fd',
         },
+        candidate: {
+          username: 'peer1',
+          path: 'peer1/Radiohead - Kid A (2000) [FLAC]',
+          sizeBytes: 1000,
+        },
       },
     });
   });
@@ -61,6 +66,12 @@ describe('the recorded acquisition.fulfilled fixture', () => {
         mbReleaseId: '6e335887-60ba-38f0-95af-fae8774d20fd',
         artist: 'Radiohead',
         album: 'Kid A',
+      },
+      // The retained candidate a later release verdict must echo (the sender's stale-guard key).
+      candidate: {
+        username: 'peer1',
+        path: 'peer1/Radiohead - Kid A (2000) [FLAC]',
+        sizeBytes: 1000,
       },
     });
   });

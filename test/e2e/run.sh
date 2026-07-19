@@ -15,9 +15,14 @@ cd "$(dirname "$0")/../.."
 
 IMAGE=music-importer:e2e
 NAME=music-importer-e2e
+NAME_DORMANT=music-importer-e2e-dormant
 PORT="${E2E_PORT:-3900}"
+DORMANT_PORT="${E2E_DORMANT_PORT:-3902}"
+VERDICT_PORT="${E2E_VERDICT_PORT:-3901}"
 export E2E_DATA_DIR="$(pwd)/.e2e-tmp"
 export E2E_BASE_URL="http://localhost:$PORT"
+export E2E_DORMANT_BASE_URL="http://localhost:$DORMANT_PORT"
+export E2E_VERDICT_PORT="$VERDICT_PORT"
 
 if [[ "${E2E_SKIP_BUILD:-0}" != "1" ]]; then
   docker build -t "$IMAGE" .
@@ -26,15 +31,17 @@ fi
 dump_logs() {
   echo "=== docker logs (tail) ===" >&2
   docker logs --tail 150 "$NAME" >&2 || true
+  echo "=== docker logs, dormant instance (tail) ===" >&2
+  docker logs --tail 50 "$NAME_DORMANT" >&2 || true
 }
-cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -f "$NAME" "$NAME_DORMANT" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 cleanup
 
 # Fresh shared data dir, owned by the invoking user; the container runs as this uid/gid so both
 # sides share ownership of the SQLite file, the intake, and the library.
 rm -rf .e2e-tmp
-mkdir -p .e2e-tmp/music/intake .e2e-tmp/music/library .e2e-tmp/beets .e2e-tmp/data
+mkdir -p .e2e-tmp/music/intake .e2e-tmp/music/library .e2e-tmp/beets .e2e-tmp/data .e2e-tmp/data2
 
 # Hermetic beets config: library-defining settings only; the bridge forces the session overlay.
 # Intake and library share the /music parent so beets' move is a rename, never a cross-device copy.
@@ -81,7 +88,7 @@ gen() { # gen <subdir/file> <seconds> <artist> <album> <title> <track>
     -metadata artist="$3" -metadata albumartist="$3" -metadata album="$4" \
     -metadata title="$5" -metadata track="$6/2" -y "/intake/$1"
 }
-mkdir -p .e2e-tmp/music/intake/{love-me-do,please-please-me,mystery,webhook-drop}
+mkdir -p .e2e-tmp/music/intake/{love-me-do,please-please-me,mystery,webhook-drop,dormant-drop}
 # Strong: The Beatles — Love Me Do (1988 single, 22c9f6a3-…): exact durations → auto-apply.
 gen "love-me-do/01 Love Me Do.mp3"      143 "The Beatles" "Love Me Do" "Love Me Do"      1
 gen "love-me-do/02 P.S. I Love You.mp3" 123 "The Beatles" "Love Me Do" "P.S. I Love You" 2
@@ -94,15 +101,27 @@ gen "mystery/02 Jam Two.mp3" 59 "Unknown Homie xq77" "Basement Tape zz93" "Jam T
 # Webhook fodder: deposited "by the downloader", submitted via the signed acquisition receiver.
 gen "webhook-drop/01 Wire One.mp3" 62 "Unknown Homie xq77" "Webhook Tape zz94" "Wire One" 1
 gen "webhook-drop/02 Wire Two.mp3" 58 "Unknown Homie xq77" "Webhook Tape zz94" "Wire Two" 2
+# Dormant fodder: same shape, driven against the dormant-publisher instance below.
+gen "dormant-drop/01 Quiet One.mp3" 63 "Unknown Homie xq77" "Dormant Tape zz95" "Quiet One" 1
+gen "dormant-drop/02 Quiet Two.mp3" 57 "Unknown Homie xq77" "Dormant Tape zz95" "Quiet Two" 2
 
-# The intake receiver's shared secret + the sender-namespace root (mirrored by webhook.e2e.test.ts).
+# The dormant instance gets its own beets config + library.db (no SQLite cross-container sharing).
+cp -r .e2e-tmp/beets .e2e-tmp/beets2
+
+# The intake receiver's shared secret + the sender-namespace root (mirrored by webhook.e2e.test.ts),
+# and the outbound verdict publisher's secret + host-side stub subscriber URL (the vitest process
+# runs the stub; host.docker.internal resolves to the host gateway via --add-host below).
 INTAKE_SECRET="whsec_$(printf %s 'e2e-intake-signing-key' | base64)"
+VERDICT_SECRET="whsec_$(printf %s 'e2e-verdict-signing-key' | base64)"
 
 docker run -d --name "$NAME" -p "$PORT:3000" \
   --user "$(id -u):$(id -g)" \
+  --add-host=host.docker.internal:host-gateway \
   -e INTAKE_ROOT=/music/intake \
   -e INTAKE_WEBHOOK_SECRET="$INTAKE_SECRET" \
   -e INTAKE_SOURCE_ROOT=/downloads/import \
+  -e VERDICT_WEBHOOK_URLS="http://host.docker.internal:$VERDICT_PORT/verdicts" \
+  -e VERDICT_WEBHOOK_SECRET="$VERDICT_SECRET" \
   -e BEETS_CONFIG=/config/beets/config.yaml \
   -e DATABASE_FILE=/data/events.db \
   -e HOME=/tmp \
@@ -111,17 +130,34 @@ docker run -d --name "$NAME" -p "$PORT:3000" \
   -v "$E2E_DATA_DIR/data:/data" \
   "$IMAGE" >/dev/null
 
-# Wait until the API actually answers (bounded per-attempt; startup includes bridge validation).
-deadline=$(( $(date +%s) + 120 ))
-until curl -fsS --max-time 3 "$E2E_BASE_URL/api/v1/imports" >/dev/null 2>&1; do
-  if (( $(date +%s) >= deadline )); then
-    echo "readiness timeout: the app did not answer within 120s" >&2
-    dump_logs
-    exit 1
-  fi
-  sleep 2
+# A second instance with NO VERDICT_* config: proves dormant means dormant end to end (its verdicts
+# are recorded but never delivered anywhere). Shares the intake mount; owns its beets + event DBs.
+docker run -d --name "$NAME_DORMANT" -p "$DORMANT_PORT:3000" \
+  --user "$(id -u):$(id -g)" \
+  -e INTAKE_ROOT=/music/intake \
+  -e INTAKE_WEBHOOK_SECRET="$INTAKE_SECRET" \
+  -e INTAKE_SOURCE_ROOT=/downloads/import \
+  -e BEETS_CONFIG=/config/beets/config.yaml \
+  -e DATABASE_FILE=/data/events.db \
+  -e HOME=/tmp \
+  -v "$E2E_DATA_DIR/music:/music" \
+  -v "$E2E_DATA_DIR/beets2:/config/beets" \
+  -v "$E2E_DATA_DIR/data2:/data" \
+  "$IMAGE" >/dev/null
+
+# Wait until both APIs actually answer (bounded per-attempt; startup includes bridge validation).
+deadline=$(( $(date +%s) + 180 ))
+for url in "$E2E_BASE_URL" "$E2E_DORMANT_BASE_URL"; do
+  until curl -fsS --max-time 3 "$url/api/v1/imports" >/dev/null 2>&1; do
+    if (( $(date +%s) >= deadline )); then
+      echo "readiness timeout: $url did not answer in time" >&2
+      dump_logs
+      exit 1
+    fi
+    sleep 2
+  done
 done
-echo "ready: app"
+echo "ready: app + dormant instance"
 
 if ! pnpm exec vitest run --config test/e2e/vitest.config.ts; then
   dump_logs

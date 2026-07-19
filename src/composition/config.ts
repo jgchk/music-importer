@@ -33,12 +33,29 @@ const envSchema = z.object({
   INTAKE_WEBHOOK_SECRET: z.string().min(1).optional(),
   /** The SENDER's root prefix its `location`s fall under; required iff the receiver is active. */
   INTAKE_SOURCE_ROOT: z.string().min(1).optional(),
+  /**
+   * Comma-separated subscriber URLs for the outbound `release.verdict` publisher. Absent/empty →
+   * the publisher is dormant (no delivery is ever attempted). Set → VERDICT_WEBHOOK_SECRET is
+   * required (publishing unsigned is impossible: fatal at boot).
+   */
+  VERDICT_WEBHOOK_URLS: z.string().optional(),
+  /**
+   * The shared Standard Webhooks signing secret (`whsec_<base64>`) verdict deliveries are signed
+   * with — the same value the receiving downloader verifies with.
+   */
+  VERDICT_WEBHOOK_SECRET: z.string().min(1).optional(),
 });
 
 /** The acquisition webhook receiver's config group, present only when the receiver is active. */
 export interface IntakeWebhookConfig {
   readonly secret: string;
   readonly sourceRoot: string;
+}
+
+/** The outbound verdict publisher's config group, present only when the publisher is active. */
+export interface VerdictWebhookConfig {
+  readonly urls: readonly string[];
+  readonly secret: string;
 }
 
 export interface AppConfig {
@@ -51,6 +68,7 @@ export interface AppConfig {
   readonly bridgeTimeoutMs: number;
   readonly autoApplyThreshold: number;
   readonly intakeWebhook?: IntakeWebhookConfig;
+  readonly verdictWebhooks?: VerdictWebhookConfig;
 }
 
 /** A `whsec_`-prefixed (or bare) base64 secret that decodes to a non-empty key. */
@@ -74,13 +92,39 @@ function intakeWebhookOf(data: {
   return ok({ secret, sourceRoot: data.INTAKE_SOURCE_ROOT });
 }
 
+function verdictWebhooksOf(data: {
+  readonly VERDICT_WEBHOOK_URLS?: string;
+  readonly VERDICT_WEBHOOK_SECRET?: string;
+}): Result<VerdictWebhookConfig | undefined, string> {
+  const urls = (data.VERDICT_WEBHOOK_URLS ?? '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter((url) => url !== '');
+  if (urls.length === 0) return ok(undefined); // dormant: no subscribers, no publisher
+  const invalid = urls.find((url) => !URL.canParse(url));
+  if (invalid !== undefined) {
+    return err(`VERDICT_WEBHOOK_URLS contains an unparseable URL: ${invalid}`);
+  }
+  const secret = data.VERDICT_WEBHOOK_SECRET;
+  if (secret === undefined) {
+    return err('VERDICT_WEBHOOK_SECRET is required when VERDICT_WEBHOOK_URLS is set');
+  }
+  if (!isUsableSecret(secret)) {
+    return err('VERDICT_WEBHOOK_SECRET is not a usable whsec_<base64> secret');
+  }
+  return ok({ urls, secret });
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv): Result<AppConfig, string> {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) return err(parsed.error.message);
   const intakeWebhook = intakeWebhookOf(parsed.data);
   if (intakeWebhook.isErr()) return err(intakeWebhook.error);
+  const verdictWebhooks = verdictWebhooksOf(parsed.data);
+  if (verdictWebhooks.isErr()) return err(verdictWebhooks.error);
   return ok({
     intakeWebhook: intakeWebhook.value,
+    verdictWebhooks: verdictWebhooks.value,
     httpPort: parsed.data.HTTP_PORT,
     host: parsed.data.HTTP_HOST,
     databaseFile: parsed.data.DATABASE_FILE,
