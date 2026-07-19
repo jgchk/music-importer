@@ -1,0 +1,121 @@
+import { describe, expect, it } from 'vitest';
+import {
+  APPLIED,
+  AUTO_APPLIED,
+  DIRECTORY,
+  FAILURE,
+  HINTS,
+  MATCH_REVIEW,
+  appliedHistory,
+  awaitingMatchReview,
+  candidate,
+  proposed,
+  remediationHistory,
+  requested,
+  resolved,
+} from '../../domain/import/__fixtures__/import-fixtures.js';
+import type { ImportEvent } from '../../domain/import/events.js';
+import type { StoredEvent } from '../ports/event-store-port.js';
+import { ImportStatusProjection, projectStatus } from './read-models.js';
+
+function storedAll(streamId: string, events: readonly ImportEvent[], from = 0): StoredEvent[] {
+  return events.map((event, index) => ({
+    globalSeq: from + index + 1,
+    streamId,
+    version: index,
+    type: event.type,
+    event,
+    metadata: { importId: streamId, occurredAt: 't' },
+  }));
+}
+
+describe('projectStatus', () => {
+  it('narrates the full history of an applied import', () => {
+    const history: ImportEvent[] = [
+      requested({ hints: HINTS }),
+      proposed([candidate()], [], 'mb-1'),
+      AUTO_APPLIED,
+      APPLIED,
+    ];
+    const view = projectStatus('imp-1', history);
+    expect(view).toMatchObject({
+      importId: 'imp-1',
+      directory: DIRECTORY,
+      phase: 'applied',
+      location: '/library/Artist/Album',
+    });
+    expect(view.history).toEqual([
+      { kind: 'requested', hints: HINTS },
+      { kind: 'proposed', candidateCount: 1, pinnedId: 'mb-1' },
+      { kind: 'auto-apply-selected', candidate: candidate().ref, distance: 0.05 },
+      { kind: 'applied', location: '/library/Artist/Album' },
+    ]);
+  });
+
+  it('explains why review was required and what the human chose', () => {
+    const history = [
+      ...awaitingMatchReview(),
+      resolved({ kind: 'reject', reason: 'wrong rip' }),
+      { type: 'ImportRejected', reason: 'wrong rip', filesDeleted: true } as const,
+    ];
+    const view = projectStatus('imp-1', history);
+    expect(view.history).toContainEqual({ kind: 'review-required', reviewKind: 'match-review' });
+    expect(view.history).toContainEqual({ kind: 'review-resolved', resolution: 'reject' });
+    expect(view.history).toContainEqual({
+      kind: 'rejected',
+      reason: 'wrong rip',
+      filesDeleted: true,
+    });
+    expect(view.rejection).toEqual({ reason: 'wrong rip', filesDeleted: true });
+  });
+
+  it('records remediation entries', () => {
+    const view = projectStatus('imp-1', remediationHistory());
+    expect(view.history).toContainEqual({ kind: 'remediation-required', failures: [FAILURE] });
+  });
+});
+
+describe('ImportStatusProjection', () => {
+  it('follows applied events and serves get/list', () => {
+    const projection = new ImportStatusProjection();
+    for (const stored of storedAll('imp-1', awaitingMatchReview())) projection.apply(stored);
+
+    expect(projection.get('imp-1')?.phase).toBe('awaiting-review');
+    expect(projection.get('imp-2')).toBeUndefined();
+    expect(projection.list().map((view) => view.importId)).toEqual(['imp-1']);
+  });
+
+  it('lists pending reviews with their carried context, skipping settled imports', () => {
+    const projection = new ImportStatusProjection();
+    for (const stored of storedAll('imp-1', awaitingMatchReview())) projection.apply(stored);
+    for (const stored of storedAll('imp-2', appliedHistory(), 10)) projection.apply(stored);
+
+    const reviews = projection.pendingReviews();
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]).toMatchObject({
+      importId: 'imp-1',
+      directory: DIRECTORY,
+      review: {
+        cause: { kind: 'match-review' },
+        candidates: [candidate({ distance: 0.5 })],
+      },
+    });
+  });
+
+  it('rebuilds from the log, replacing prior state', () => {
+    const projection = new ImportStatusProjection();
+    for (const stored of storedAll('imp-old', [requested()])) projection.apply(stored);
+
+    projection.rebuild(storedAll('imp-1', appliedHistory()));
+
+    expect(projection.get('imp-old')).toBeUndefined();
+    expect(projection.get('imp-1')?.phase).toBe('applied');
+  });
+
+  it('never lists a review for a stream that only holds an unfitting event', () => {
+    const projection = new ImportStatusProjection();
+    // A corrupt stream: a review event with no request before it folds to empty (no directory).
+    projection.apply(storedAll('imp-x', [MATCH_REVIEW])[0]!);
+    expect(projection.pendingReviews()).toEqual([]);
+  });
+});

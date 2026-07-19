@@ -1,0 +1,221 @@
+{
+  "name": "propose-free-search-weak",
+  "output": {
+    "candidates": [
+      {
+        "album": "Basement Tape",
+        "album_id": "cb4b3610-b20a-4b6b-aee4-0af06f39176c",
+        "artist": "Sloth",
+        "data_source": "MusicBrainz",
+        "distance": 0.670681423611111,
+        "penalties": [
+          {
+            "amount": 0.2517361111111111,
+            "name": "tracks"
+          },
+          {
+            "amount": 0.205078125,
+            "name": "artist"
+          },
+          {
+            "amount": 0.140625,
+            "name": "missing_tracks"
+          },
+          {
+            "amount": 0.05859375,
+            "name": "album"
+          },
+          {
+            "amount": 0.0146484375,
+            "name": "year"
+          }
+        ],
+        "tracks": [
+          {
+            "index": 1,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/01 Jam One.mp3",
+            "title": "They Know Me Very Well"
+          },
+          {
+            "index": 2,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/02 Jam Two.mp3",
+            "title": "Drunk"
+          }
+        ]
+      },
+      {
+        "album": "Gish Basement Tape",
+        "album_id": "74c8fedd-1d95-4ce3-b1a8-d4695101c7f9",
+        "artist": "The Smashing Pumpkins",
+        "data_source": "MusicBrainz",
+        "distance": 0.6965319382002056,
+        "penalties": [
+          {
+            "amount": 0.20550806761429122,
+            "name": "artist"
+          },
+          {
+            "amount": 0.19708029197080296,
+            "name": "missing_tracks"
+          },
+          {
+            "amount": 0.18248175182481752,
+            "name": "tracks"
+          },
+          {
+            "amount": 0.10948905109489052,
+            "name": "album"
+          },
+          {
+            "amount": 0.0019727756954034327,
+            "name": "year"
+          }
+        ],
+        "tracks": [
+          {
+            "index": 1,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/01 Jam One.mp3",
+            "title": "I Am One"
+          },
+          {
+            "index": 2,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/02 Jam Two.mp3",
+            "title": "Bury Me"
+          }
+        ]
+      },
+      {
+        "album": "The Lost Tape",
+        "album_id": "e8c97ed7-b7da-4e6c-973f-8cc168a1f958",
+        "artist": "[unknown]",
+        "data_source": "MusicBrainz",
+        "distance": 0.7370972126831501,
+        "penalties": [
+          {
+            "amount": 0.24002690018315015,
+            "name": "tracks"
+          },
+          {
+            "amount": 0.146484375,
+            "name": "album"
+          },
+          {
+            "amount": 0.140625,
+            "name": "missing_tracks"
+          },
+          {
+            "amount": 0.1318359375,
+            "name": "artist"
+          },
+          {
+            "amount": 0.078125,
+            "name": "year"
+          }
+        ],
+        "tracks": [
+          {
+            "index": 1,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/01 Jam One.mp3",
+            "title": "Channel Affair"
+          },
+          {
+            "index": 2,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/02 Jam Two.mp3",
+            "title": "Channel Affair (The Love I Lost Mix)"
+          }
+        ]
+      },
+      {
+        "album": "Basement Tape",
+        "album_id": "8011266b-bcac-4e59-acdd-f64fd947ec3d",
+        "artist": "5 Girls",
+        "data_source": "MusicBrainz",
+        "distance": 0.769039465101109,
+        "penalties": [
+          {
+            "amount": 0.24657534246575344,
+            "name": "missing_tracks"
+          },
+          {
+            "amount": 0.20996412263535552,
+            "name": "tracks"
+          },
+          {
+            "amount": 0.19263698630136986,
+            "name": "artist"
+          },
+          {
+            "amount": 0.0684931506849315,
+            "name": "year"
+          },
+          {
+            "amount": 0.051369863013698634,
+            "name": "album"
+          }
+        ],
+        "tracks": [
+          {
+            "index": 1,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/01 Jam One.mp3",
+            "title": "Beach Babe Bogan"
+          },
+          {
+            "index": 2,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/02 Jam Two.mp3",
+            "title": "I\u2019m in Love"
+          }
+        ]
+      },
+      {
+        "album": "The Basement Safety Tape",
+        "album_id": "436f7394-b9b6-4081-99cd-88c31d5c7225",
+        "artist": "Bob Dylan & The Band",
+        "data_source": "MusicBrainz",
+        "distance": 0.8984593837535013,
+        "penalties": [
+          {
+            "amount": 0.6529968454258674,
+            "name": "missing_tracks"
+          },
+          {
+            "amount": 0.08698274262386341,
+            "name": "tracks"
+          },
+          {
+            "amount": 0.08412197686645635,
+            "name": "artist"
+          },
+          {
+            "amount": 0.04281207751239297,
+            "name": "album"
+          },
+          {
+            "amount": 0.031545741324921134,
+            "name": "year"
+          }
+        ],
+        "tracks": [
+          {
+            "index": 1,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/01 Jam One.mp3",
+            "title": "Million Dollar Bash"
+          },
+          {
+            "index": 18,
+            "path": "/tmp/tmp.KYCeUjo8Hp/intake/mystery/02 Jam Two.mp3",
+            "title": "Open the Door Homer"
+          }
+        ]
+      }
+    ],
+    "duplicates": [],
+    "status": "proposal"
+  },
+  "provenance": {
+    "beets": "2.12.0",
+    "capturedAt": "2026-07-19",
+    "recorder": "test/contract/record-bridge-fixtures.sh",
+    "release": "22c9f6a3-0569-4c59-b551-cb4a26b0bc3f"
+  },
+  "verb": "propose"
+}

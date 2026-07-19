@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Out-of-process E2E tier: build (or reuse) the real image, run it, drive the HTTP surface over a
-# real socket, tear down. CI gates the exact image it will publish (builds once, sets E2E_SKIP_BUILD).
+# Out-of-process E2E tier: build (or reuse) the real image, run it against a hermetic beets
+# fixture config + a tiny generated intake on a shared temp volume, drive the HTTP/MCP surface
+# over a real socket, tear down. The matcher talks to the real MusicBrainz (the fixture albums pin
+# small, stable Beatles singles), so the tier exercises a REAL beets end to end: propose →
+# auto-apply/review → move-into-library.
 #
 # Env:
-#   E2E_SKIP_BUILD=1   use the already-built `music-importer:e2e` image.
+#   E2E_SKIP_BUILD=1   use the already-built `music-importer:e2e` image (CI gates the exact image
+#                      it will publish, so it builds once and sets this).
 #   E2E_PORT           host port to bind (default 3900).
 set -euo pipefail
 
@@ -12,39 +16,80 @@ cd "$(dirname "$0")/../.."
 IMAGE=music-importer:e2e
 NAME=music-importer-e2e
 PORT="${E2E_PORT:-3900}"
+export E2E_DATA_DIR="$(pwd)/.e2e-tmp"
+export E2E_BASE_URL="http://localhost:$PORT"
 
 if [[ "${E2E_SKIP_BUILD:-0}" != "1" ]]; then
   docker build -t "$IMAGE" .
 fi
 
+dump_logs() {
+  echo "=== docker logs (tail) ===" >&2
+  docker logs --tail 150 "$NAME" >&2 || true
+}
 cleanup() { docker rm -f "$NAME" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 cleanup
 
-docker run -d --name "$NAME" -p "$PORT:3000" "$IMAGE" >/dev/null
+# Fresh shared data dir, owned by the invoking user; the container runs as this uid/gid so both
+# sides share ownership of the SQLite file, the intake, and the library.
+rm -rf .e2e-tmp
+mkdir -p .e2e-tmp/music/intake .e2e-tmp/music/library .e2e-tmp/beets .e2e-tmp/data
 
-# Wait until the API actually answers (bounded), then assert the surface.
-deadline=$(( $(date +%s) + 60 ))
-until curl -fsS --max-time 3 "http://localhost:$PORT/api/v1/imports" >/dev/null 2>&1; do
+# Hermetic beets config: library-defining settings only; the bridge forces the session overlay.
+# Intake and library share the /music parent so beets' move is a rename, never a cross-device copy.
+cat > .e2e-tmp/beets/config.yaml <<'YAML'
+directory: /music/library
+library: /config/beets/library.db
+import:
+  move: yes
+plugins: [musicbrainz]
+YAML
+
+# Generate the fixture intake with the image's own ffmpeg (no host ffmpeg needed). Each album
+# pins a real, stable MusicBrainz release whose durations the silent files reproduce (or mangle).
+gen() { # gen <subdir/file> <seconds> <artist> <album> <title> <track>
+  docker run --rm --user "$(id -u):$(id -g)" --entrypoint ffmpeg \
+    -v "$E2E_DATA_DIR/music/intake:/intake" "$IMAGE" \
+    -v error -f lavfi -i "anullsrc=r=22050:cl=mono" -t "$2" -b:a 32k \
+    -metadata artist="$3" -metadata albumartist="$3" -metadata album="$4" \
+    -metadata title="$5" -metadata track="$6/2" -y "/intake/$1"
+}
+mkdir -p .e2e-tmp/music/intake/{love-me-do,please-please-me,mystery}
+# Strong: The Beatles — Love Me Do (1988 single, 22c9f6a3-…): exact durations → auto-apply.
+gen "love-me-do/01 Love Me Do.mp3"      143 "The Beatles" "Love Me Do" "Love Me Do"      1
+gen "love-me-do/02 P.S. I Love You.mp3" 123 "The Beatles" "Love Me Do" "P.S. I Love You" 2
+# Weak: Please Please Me (1988 single, 710bdd49-…) with a 30s stub → review with penalty detail.
+gen "please-please-me/01 Please Please Me.mp3" 30  "The Beatles" "Please Please Me" "Please Please Me" 1
+gen "please-please-me/02 Ask Me Why.mp3"       145 "The Beatles" "Please Please Me" "Ask Me Why"       2
+# Reject fodder: an album MusicBrainz cannot confidently match.
+gen "mystery/01 Jam One.mp3" 61 "Unknown Homie xq77" "Basement Tape zz93" "Jam One" 1
+gen "mystery/02 Jam Two.mp3" 59 "Unknown Homie xq77" "Basement Tape zz93" "Jam Two" 2
+
+docker run -d --name "$NAME" -p "$PORT:3000" \
+  --user "$(id -u):$(id -g)" \
+  -e INTAKE_ROOT=/music/intake \
+  -e BEETS_CONFIG=/config/beets/config.yaml \
+  -e DATABASE_FILE=/data/events.db \
+  -e HOME=/tmp \
+  -v "$E2E_DATA_DIR/music:/music" \
+  -v "$E2E_DATA_DIR/beets:/config/beets" \
+  -v "$E2E_DATA_DIR/data:/data" \
+  "$IMAGE" >/dev/null
+
+# Wait until the API actually answers (bounded per-attempt; startup includes bridge validation).
+deadline=$(( $(date +%s) + 120 ))
+until curl -fsS --max-time 3 "$E2E_BASE_URL/api/v1/imports" >/dev/null 2>&1; do
   if (( $(date +%s) >= deadline )); then
-    echo "readiness timeout: the app did not answer within 60s" >&2
-    docker logs "$NAME" >&2 || true
+    echo "readiness timeout: the app did not answer within 120s" >&2
+    dump_logs
     exit 1
   fi
-  sleep 1
+  sleep 2
 done
+echo "ready: app"
 
-body="$(curl -fsS "http://localhost:$PORT/api/v1/imports")"
-if [[ "$body" != '{"imports":[]}' ]]; then
-  echo "unexpected /api/v1/imports body: $body" >&2
+if ! pnpm exec vitest run --config test/e2e/vitest.config.ts; then
+  dump_logs
   exit 1
 fi
-
-api_version="$(curl -fsS "http://localhost:$PORT/docs/json" | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).info.version')"
-pkg_version="$(node -p "require('./package.json').version")"
-if [[ "$api_version" != "$pkg_version" ]]; then
-  echo "version mismatch: api=$api_version pkg=$pkg_version" >&2
-  exit 1
-fi
-
-echo "e2e OK (version $api_version)"

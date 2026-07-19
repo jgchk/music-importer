@@ -25,17 +25,45 @@ const layerBoundaryZones = [
   { target: './src/interfaces', from: './src/composition' },
 ];
 
+/**
+ * The import decider internals — the folded state, `decide`, and `react` — are private to the
+ * aggregate. Only `src/domain/import/*` may import them; every other layer goes through the
+ * `Import` facade (`import.js`), which re-exports the public types. A violation fails lint and
+ * therefore CI.
+ */
+const importDeciderInternals = [
+  './src/domain/import/state.ts',
+  './src/domain/import/decide.ts',
+  './src/domain/import/react.ts',
+];
+const aggregateExternalConsumers = [
+  './src/application',
+  './src/adapters',
+  './src/interfaces',
+  './src/composition',
+];
+const aggregateEncapsulationZones = aggregateExternalConsumers.flatMap((target) =>
+  importDeciderInternals.map((from) => ({
+    target,
+    from,
+    message:
+      'Import decider internals are private to the aggregate — import the Import facade from domain/import/import.js instead.',
+  })),
+);
+
 export default tseslint.config(
   {
-    // test/e2e and scripts/ (release tooling) are out-of-src suites verified by execution
-    // (Docker-driven e2e; version:prep unit tests), not part of the src-scoped TypeScript project
-    // (tsconfig `include: ["src"]`); keep them out of the type-checked lint.
+    // test/e2e, test/contract, and scripts/ (release tooling) are out-of-src suites verified by
+    // execution (Docker-driven e2e; frozen-fixture contract tests; version:prep unit tests), not
+    // part of the src-scoped TypeScript project (tsconfig `include: ["src"]`); keep them out of
+    // the type-checked lint.
     ignores: [
       'dist/**',
       'coverage/**',
       'node_modules/**',
       '.e2e-tmp/**',
       'test/e2e/**',
+      'test/contract/**',
       'scripts/**',
       '*.config.ts',
       '*.config.js',
@@ -61,7 +89,10 @@ export default tseslint.config(
       },
     },
     rules: {
-      'import/no-restricted-paths': ['error', { zones: [...layerBoundaryZones] }],
+      'import/no-restricted-paths': [
+        'error',
+        { zones: [...layerBoundaryZones, ...aggregateEncapsulationZones] },
+      ],
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
