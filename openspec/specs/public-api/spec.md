@@ -8,7 +8,7 @@ Expose the import lifecycle over the versioned HTTP API and the MCP server from 
 
 ### Requirement: Imports and reviews are exposed over HTTP and MCP from one contract source
 
-The system SHALL expose the import lifecycle over a versioned HTTP API (`/api/v1/imports`) and an MCP server offering the same operations: submit an import (directory path + optional hints), list imports, get an import (with its history), list pending reviews, and resolve a review by verb. Both surfaces SHALL be generated from a single set of zod contract schemas, and the HTTP API SHALL publish its OpenAPI document. Changes to the public surface SHALL be additive-only within the version.
+The system SHALL expose the import lifecycle over a versioned HTTP API (`/api/v1/imports`) and an MCP server offering the same operations: submit an import (directory path + optional hints), list imports, get an import (with its history), list pending reviews, and resolve a review by verb — the verb union including reject-and-retry-download, whose missing-precondition refusal (no retained candidate) SHALL surface as a precise, schema-shaped error on both surfaces. Both surfaces SHALL be generated from a single set of zod contract schemas, and the HTTP API SHALL publish its OpenAPI document. Changes to the public surface SHALL be additive-only within the version.
 
 #### Scenario: Manual import end to end over HTTP
 
@@ -27,6 +27,12 @@ The system SHALL expose the import lifecycle over a versioned HTTP API (`/api/v1
 - **GIVEN** a submission missing its directory path
 - **WHEN** it is posted
 - **THEN** it is rejected by schema validation with a precise error, identically on both surfaces
+
+#### Scenario: The retry verb's refusal is contract-shaped on both surfaces
+
+- **GIVEN** a review whose import retains no delivered candidate
+- **WHEN** reject-and-retry-download is submitted over HTTP or MCP
+- **THEN** the refusal names the missing retained-candidate precondition in the documented error shape, identically on both surfaces
 
 ### Requirement: A signed webhook receiver accepts downloader events as a tolerant reader
 
