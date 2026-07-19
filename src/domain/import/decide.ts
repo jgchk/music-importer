@@ -123,6 +123,7 @@ export function decide(command: ImportCommand, state: ImportState): Decision {
           directory: command.directory,
           hints: command.hints,
           policy: command.policy,
+          source: command.source,
         },
       ]);
     case 'RecordProposal':

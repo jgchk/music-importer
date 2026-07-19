@@ -3,6 +3,7 @@ import type {
   DuplicateIncumbent,
   ImportHints,
   ImportPolicy,
+  ImportSource,
   ProposedCandidate,
   Resolution,
 } from './events.js';
@@ -17,6 +18,7 @@ export type ImportCommand =
       readonly directory: string;
       readonly hints?: ImportHints;
       readonly policy: ImportPolicy;
+      readonly source?: ImportSource;
     }
   | {
       readonly type: 'RecordProposal';

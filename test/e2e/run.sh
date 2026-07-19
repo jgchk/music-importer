@@ -55,7 +55,7 @@ gen() { # gen <subdir/file> <seconds> <artist> <album> <title> <track>
     -metadata artist="$3" -metadata albumartist="$3" -metadata album="$4" \
     -metadata title="$5" -metadata track="$6/2" -y "/intake/$1"
 }
-mkdir -p .e2e-tmp/music/intake/{love-me-do,please-please-me,mystery}
+mkdir -p .e2e-tmp/music/intake/{love-me-do,please-please-me,mystery,webhook-drop}
 # Strong: The Beatles — Love Me Do (1988 single, 22c9f6a3-…): exact durations → auto-apply.
 gen "love-me-do/01 Love Me Do.mp3"      143 "The Beatles" "Love Me Do" "Love Me Do"      1
 gen "love-me-do/02 P.S. I Love You.mp3" 123 "The Beatles" "Love Me Do" "P.S. I Love You" 2
@@ -65,10 +65,18 @@ gen "please-please-me/02 Ask Me Why.mp3"       145 "The Beatles" "Please Please 
 # Reject fodder: an album MusicBrainz cannot confidently match.
 gen "mystery/01 Jam One.mp3" 61 "Unknown Homie xq77" "Basement Tape zz93" "Jam One" 1
 gen "mystery/02 Jam Two.mp3" 59 "Unknown Homie xq77" "Basement Tape zz93" "Jam Two" 2
+# Webhook fodder: deposited "by the downloader", submitted via the signed acquisition receiver.
+gen "webhook-drop/01 Wire One.mp3" 62 "Unknown Homie xq77" "Webhook Tape zz94" "Wire One" 1
+gen "webhook-drop/02 Wire Two.mp3" 58 "Unknown Homie xq77" "Webhook Tape zz94" "Wire Two" 2
+
+# The intake receiver's shared secret + the sender-namespace root (mirrored by webhook.e2e.test.ts).
+INTAKE_SECRET="whsec_$(printf %s 'e2e-intake-signing-key' | base64)"
 
 docker run -d --name "$NAME" -p "$PORT:3000" \
   --user "$(id -u):$(id -g)" \
   -e INTAKE_ROOT=/music/intake \
+  -e INTAKE_WEBHOOK_SECRET="$INTAKE_SECRET" \
+  -e INTAKE_SOURCE_ROOT=/downloads/import \
   -e BEETS_CONFIG=/config/beets/config.yaml \
   -e DATABASE_FILE=/data/events.db \
   -e HOME=/tmp \

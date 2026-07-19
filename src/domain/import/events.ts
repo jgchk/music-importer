@@ -17,6 +17,15 @@ export interface ImportPolicy {
 }
 
 /**
+ * Provenance of an event-driven submission: the sender-side acquisition that deposited the
+ * directory. Recorded on `ImportRequested` so redelivered acquisition events converge durably
+ * (the projection indexes it across restarts) instead of relying on in-memory dedupe.
+ */
+export interface ImportSource {
+  readonly acquisitionId: string;
+}
+
+/**
  * A candidate's identity as beets 2.x models it: the `(data_source, album_id)` pair. Metadata
  * sources are pluggable, so a bare MusicBrainz id is ambiguous — the pair is the stable key that
  * `apply` re-resolves deterministically.
@@ -131,6 +140,7 @@ export type ImportEvent =
       readonly directory: string;
       readonly hints?: ImportHints;
       readonly policy: ImportPolicy;
+      readonly source?: ImportSource;
     }
   | {
       readonly type: 'CandidatesProposed';

@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import type { ResultAsync } from 'neverthrow';
-import type { ImportHints, ImportPolicy, Resolution } from '../../domain/import/events.js';
+import type {
+  ImportHints,
+  ImportPolicy,
+  ImportSource,
+  Resolution,
+} from '../../domain/import/events.js';
 import type {
   ImportStatusProjection,
   ImportStatusView,
@@ -35,6 +40,8 @@ export function importIdFor(directory: string): string {
 export interface SubmitImportInput {
   readonly directory: string;
   readonly hints?: ImportHints;
+  /** Provenance of an event-driven submission, recorded for durable acquisition idempotency. */
+  readonly source?: ImportSource;
 }
 
 export function submitImport(
@@ -48,7 +55,16 @@ export function submitImport(
     directory,
     hints: input.hints,
     policy: deps.policy,
+    source: input.source,
   }).map(() => ({ importId }));
+}
+
+/** The import an acquisition already submitted, if any — the webhook receiver's convergence check. */
+export function findAcquisitionImport(
+  deps: UseCaseDeps,
+  acquisitionId: string,
+): string | undefined {
+  return deps.status.importIdForAcquisition(acquisitionId);
 }
 
 export function resolveReview(

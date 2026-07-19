@@ -8,8 +8,12 @@ Beets remains the library's system of record; this tool narrates and drives the 
 
 Core shipped (OpenSpec change `bootstrap-import-core`): the event-sourced `Import` aggregate, the
 stateless Python beets bridge (pinned beets 2.12), the typed review queue with its resolution
-verbs, auto-apply policy, and the HTTP + MCP surface on `/api/v1/imports`. Follow-ups on deck:
-music-downloader webhook intake, the quality-ladder duplicate policy, outbound verdict events, and
+verbs, auto-apply policy, and the HTTP + MCP surface on `/api/v1/imports`. Shipped since
+(`downloader-intake`): the signed acquisition webhook receiver — music-downloader's
+`acquisition.fulfilled` events submit imports automatically (`POST /api/v1/webhooks/acquisitions`,
+Standard Webhooks signatures, durable idempotency by acquisition id; configure
+`INTAKE_WEBHOOK_SECRET` + `INTAKE_SOURCE_ROOT`, and point the downloader's `WEBHOOK_URLS` at the
+receiver). Follow-ups on deck: the quality-ladder duplicate policy, outbound verdict events, and
 notifications.
 
 ## Running

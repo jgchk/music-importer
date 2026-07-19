@@ -88,11 +88,23 @@ export function projectStatus(importId: string, events: readonly ImportEvent[]):
 
 export class ImportStatusProjection {
   private readonly streams = new Map<string, ImportEvent[]>();
+  private readonly acquisitions = new Map<string, string>();
 
   apply(stored: StoredEvent): void {
     const list = this.streams.get(stored.streamId) ?? [];
     list.push(stored.event);
     this.streams.set(stored.streamId, list);
+    if (stored.event.type === 'ImportRequested' && stored.event.source !== undefined) {
+      this.acquisitions.set(stored.event.source.acquisitionId, stored.streamId);
+    }
+  }
+
+  /**
+   * The import an acquisition already submitted, if any — the durable idempotency check for the
+   * webhook receiver. Rebuilt from the log, so redelivery converges across restarts.
+   */
+  importIdForAcquisition(acquisitionId: string): string | undefined {
+    return this.acquisitions.get(acquisitionId);
   }
 
   get(importId: string): ImportStatusView | undefined {
@@ -115,6 +127,7 @@ export class ImportStatusProjection {
 
   rebuild(stored: readonly StoredEvent[]): void {
     this.streams.clear();
+    this.acquisitions.clear();
     for (const entry of stored) this.apply(entry);
   }
 }

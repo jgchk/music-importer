@@ -26,7 +26,20 @@ const envSchema = z.object({
    * own strong-match threshold (`match.strong_rec_thresh`).
    */
   AUTO_APPLY_THRESHOLD: z.coerce.number().min(0).max(1).default(0.04),
+  /**
+   * The shared Standard Webhooks signing secret (`whsec_<base64>`) for the acquisition receiver.
+   * Absent → the receiver is dormant (the route is not registered). Malformed → fatal at boot.
+   */
+  INTAKE_WEBHOOK_SECRET: z.string().min(1).optional(),
+  /** The SENDER's root prefix its `location`s fall under; required iff the receiver is active. */
+  INTAKE_SOURCE_ROOT: z.string().min(1).optional(),
 });
+
+/** The acquisition webhook receiver's config group, present only when the receiver is active. */
+export interface IntakeWebhookConfig {
+  readonly secret: string;
+  readonly sourceRoot: string;
+}
 
 export interface AppConfig {
   readonly httpPort: number;
@@ -37,12 +50,37 @@ export interface AppConfig {
   readonly bridgePython: string;
   readonly bridgeTimeoutMs: number;
   readonly autoApplyThreshold: number;
+  readonly intakeWebhook?: IntakeWebhookConfig;
+}
+
+/** A `whsec_`-prefixed (or bare) base64 secret that decodes to a non-empty key. */
+function isUsableSecret(secret: string): boolean {
+  const encoded = secret.startsWith('whsec_') ? secret.slice('whsec_'.length) : secret;
+  return /^[A-Za-z0-9+/]+={0,2}$/u.test(encoded) && Buffer.from(encoded, 'base64').length > 0;
+}
+
+function intakeWebhookOf(data: {
+  readonly INTAKE_WEBHOOK_SECRET?: string;
+  readonly INTAKE_SOURCE_ROOT?: string;
+}): Result<IntakeWebhookConfig | undefined, string> {
+  const secret = data.INTAKE_WEBHOOK_SECRET;
+  if (secret === undefined) return ok(undefined);
+  if (!isUsableSecret(secret)) {
+    return err('INTAKE_WEBHOOK_SECRET is not a usable whsec_<base64> secret');
+  }
+  if (data.INTAKE_SOURCE_ROOT === undefined) {
+    return err('INTAKE_SOURCE_ROOT is required when INTAKE_WEBHOOK_SECRET is set');
+  }
+  return ok({ secret, sourceRoot: data.INTAKE_SOURCE_ROOT });
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv): Result<AppConfig, string> {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) return err(parsed.error.message);
+  const intakeWebhook = intakeWebhookOf(parsed.data);
+  if (intakeWebhook.isErr()) return err(intakeWebhook.error);
   return ok({
+    intakeWebhook: intakeWebhook.value,
     httpPort: parsed.data.HTTP_PORT,
     host: parsed.data.HTTP_HOST,
     databaseFile: parsed.data.DATABASE_FILE,
