@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.5](https://github.com/jgchk/music-importer/compare/v0.1.4...v0.1.5) (2026-07-19)
+
+
+### Features
+
+* **verdicts:** emit signed release.verdict webhooks via reject-and-retry-download ([b3487a7](https://github.com/jgchk/music-importer/commit/b3487a7f3d7a0c55bb7e79008e889663ad945c5f))
+
 ## [0.1.4](https://github.com/jgchk/music-importer/compare/v0.1.3...v0.1.4) (2026-07-19)
 
 

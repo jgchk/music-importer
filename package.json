@@ -1,6 +1,6 @@
 {
   "name": "music-importer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "An extensible, event-sourced music importer: beets-powered tagging and library import with human review of uncertain matches.",
   "type": "module",
