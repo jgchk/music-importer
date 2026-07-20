@@ -9,6 +9,7 @@ import { buildHttpApp } from '../http/app.js';
 import { silentLogger, testWiring } from '../__fixtures__/wiring.js';
 import type { TestWiring } from '../__fixtures__/wiring.js';
 import { buildMcpServer } from './server.js';
+import { describeResolveReviewError, resolveReviewToolSchema } from './resolve-review-tool.js';
 
 const INTAKE = '/intake/Artist - Album';
 
@@ -59,6 +60,60 @@ describe('MCP server', () => {
     for (const tool of tools) {
       expect(tool.inputSchema).toMatchObject({ type: 'object' });
     }
+  });
+
+  it('advertises resolve_review with a flat, union-free input schema', async () => {
+    const { tools } = await client.listTools();
+    const resolve = tools.find((t) => t.name === 'resolve_review')!;
+    const schema = resolve.inputSchema as Record<string, unknown>;
+
+    // Anthropic tool-use / Claude Desktop cannot represent oneOf/anyOf/allOf — assert none appear
+    // anywhere in the emitted schema, so the resolution field never degrades to type "any".
+    const unions: string[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (node !== null && typeof node === 'object') {
+        for (const [key, value] of Object.entries(node)) {
+          if (key === 'oneOf' || key === 'anyOf' || key === 'allOf') unions.push(key);
+          walk(value);
+        }
+      }
+    };
+    walk(schema);
+    expect(unions).toEqual([]);
+
+    // The resolution is one flat object with a verb discriminator enum + optional per-verb fields.
+    expect(schema.type).toBe('object');
+    const resolution = (
+      schema.properties as Record<
+        string,
+        { type: string; properties: Record<string, { enum?: string[] }> }
+      >
+    ).resolution!;
+    expect(resolution.type).toBe('object');
+    expect(resolution.properties.verb!.enum).toEqual([
+      'apply-candidate',
+      'supply-id',
+      'refresh-candidates',
+      'manual-tags',
+      'import-as-is',
+      'reject',
+      'reject-and-retry-download',
+      'accept',
+      'retry-enrichment',
+    ]);
+    expect(Object.keys(resolution.properties).sort()).toEqual([
+      'candidate',
+      'duplicateAction',
+      'mbReleaseId',
+      'reason',
+      'reasons',
+      'tags',
+      'verb',
+    ]);
   });
 
   it('submits an import and returns its id', async () => {
@@ -126,6 +181,50 @@ describe('MCP server', () => {
     expect(result.isError).toBe(true);
   });
 
+  it('names the missing candidate when apply-candidate omits it', async () => {
+    const result = (await client.callTool({
+      name: 'resolve_review',
+      arguments: { id: 'imp-1', resolution: { verb: 'apply-candidate' } },
+    })) as CallToolResult;
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain(
+      'verb=apply-candidate requires candidate.{dataSource,albumId}',
+    );
+  });
+
+  it('names the missing mbReleaseId when supply-id omits it', async () => {
+    const result = (await client.callTool({
+      name: 'resolve_review',
+      arguments: { id: 'imp-1', resolution: { verb: 'supply-id' } },
+    })) as CallToolResult;
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain('verb=supply-id requires mbReleaseId');
+  });
+
+  it('rejects a field that the given verb does not accept', async () => {
+    const result = (await client.callTool({
+      name: 'resolve_review',
+      arguments: { id: 'imp-1', resolution: { verb: 'accept', reason: 'nope' } },
+    })) as CallToolResult;
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain('verb=accept does not accept the field "reason"');
+  });
+
+  it('resolves a reject — a flat verb with an allowed optional field — reaching the use-case', async () => {
+    const importId = await submit(); // default stub: no candidates → a no-match review
+
+    const result = (await client.callTool({
+      name: 'resolve_review',
+      arguments: { id: importId, resolution: { verb: 'reject', reason: 'unwanted' } },
+    })) as CallToolResult;
+
+    expect(result.isError).toBeFalsy();
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ importId });
+  });
+
   it('reports a domain refusal during resolve as a tool error', async () => {
     const result = (await client.callTool({
       name: 'resolve_review',
@@ -188,6 +287,28 @@ describe('MCP server', () => {
   it('rejects reads of unknown imports and unknown resources', async () => {
     await expect(client.readResource({ uri: 'mi://imports/missing' })).rejects.toThrow();
     await expect(client.readResource({ uri: 'mi://other' })).rejects.toThrow();
+  });
+});
+
+describe('describeResolveReviewError', () => {
+  it('renders a root-level issue (empty path) as its bare message', () => {
+    const parsed = resolveReviewToolSchema.safeParse(42);
+
+    expect(parsed.success).toBe(false);
+    // A root issue has an empty path, so it renders as the bare zod message with no path prefix.
+    expect(describeResolveReviewError(parsed.error!)).toBe(parsed.error!.issues[0]!.message);
+  });
+
+  it('prefixes a field-level issue with its dotted path', () => {
+    const parsed = resolveReviewToolSchema.safeParse({
+      id: 'imp-1',
+      resolution: { verb: 'supply-id' },
+    });
+
+    expect(parsed.success).toBe(false);
+    expect(describeResolveReviewError(parsed.error!)).toBe(
+      'resolution.mbReleaseId: verb=supply-id requires mbReleaseId',
+    );
   });
 });
 

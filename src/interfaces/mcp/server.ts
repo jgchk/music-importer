@@ -24,10 +24,16 @@ import {
   hintsToDomain,
   pendingReviewToDto,
   resolutionToDomain,
-  resolveReviewArgsSchema,
   statusViewToDto,
   submitImportRequestSchema,
 } from '../contracts/index.js';
+import {
+  describeResolveReviewError,
+  resolveReviewDescription,
+  resolveReviewInputSchema,
+  resolveReviewToolSchema,
+  toResolveReviewRequest,
+} from './resolve-review-tool.js';
 
 /**
  * The MCP inbound adapter: the same application use-cases, exposed idiomatically. Commands become
@@ -83,9 +89,8 @@ export function buildMcpServer(deps: UseCaseDeps, logger: Logger, version: strin
       },
       {
         name: 'resolve_review',
-        description:
-          'Resolve a pending review by verb (apply-candidate, supply-id, refresh-candidates, manual-tags, import-as-is, reject, reject-and-retry-download, accept, retry-enrichment). reject deletes the files ("wrong thing to have"); reject-and-retry-download additionally records a release verdict so the delivering downloader retries with a different copy ("right thing, bad copy") — available only for downloader-delivered imports with a retained candidate, otherwise refused with NoRetainedCandidate.',
-        inputSchema: z.toJSONSchema(resolveReviewArgsSchema),
+        description: resolveReviewDescription,
+        inputSchema: resolveReviewInputSchema,
       },
     ],
   }));
@@ -108,12 +113,12 @@ export function buildMcpServer(deps: UseCaseDeps, logger: Logger, version: strin
       );
     }
     if (name === 'resolve_review') {
-      const parsed = resolveReviewArgsSchema.safeParse(args);
-      if (!parsed.success) return toolError('invalid arguments');
+      const parsed = resolveReviewToolSchema.safeParse(args);
+      if (!parsed.success) return toolError(describeResolveReviewError(parsed.error));
       const result = await resolveReview(
         deps,
         parsed.data.id,
-        resolutionToDomain(parsed.data.resolution),
+        resolutionToDomain(toResolveReviewRequest(parsed.data.resolution)),
       );
       return result.match(
         () => {

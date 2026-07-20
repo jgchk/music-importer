@@ -218,16 +218,15 @@ export const importIdParamsSchema = z.object({
   id: z.string().min(1),
 });
 
-/** Arguments for the `resolve_review` MCP tool (the HTTP id param + the same resolution body). */
-export const resolveReviewArgsSchema = z.object({
-  id: z.string().min(1),
-  resolution: resolveReviewRequestSchema,
-});
-
 export const errorResponseSchema = z.object({
   error: z.string(),
   message: z.string().optional(),
 });
+
+// Note: the `resolve_review` MCP tool no longer derives its schema here. Anthropic tool-use cannot
+// represent the `oneOf` that a discriminated-union resolution emits, so the MCP adapter presents a
+// flat, union-free equivalent (`src/interfaces/mcp/resolve-review-tool.ts`) and translates back
+// onto `ResolveReviewRequestDto`. The HTTP/OpenAPI surface keeps the union unchanged.
 
 // --- Inferred DTO types (the interface layer's public vocabulary) ------------------------------
 
