@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.7](https://github.com/jgchk/music-importer/compare/v0.1.6...v0.1.7) (2026-07-20)
+
+
+### Features
+
+* **mcp:** OAuth resource-server auth on the MCP endpoint (config-dormant) ([716818b](https://github.com/jgchk/music-importer/commit/716818bc56d46dfb8d00511482c7d1ae6ecf9bb7))
+
 ## [0.1.6](https://github.com/jgchk/music-importer/compare/v0.1.5...v0.1.6) (2026-07-20)
 
 
