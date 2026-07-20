@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: The MCP endpoint is an OAuth 2.1 Resource Server, config-dormant
 
