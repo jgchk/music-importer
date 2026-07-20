@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.6](https://github.com/jgchk/music-importer/compare/v0.1.5...v0.1.6) (2026-07-20)
+
+
+### Bug Fixes
+
+* **mcp:** flatten resolve_review input schema for tool-use compatibility ([cc5e4d7](https://github.com/jgchk/music-importer/commit/cc5e4d71cd961bfd140181ea4f56b72b52d73d46))
+
 ## [0.1.5](https://github.com/jgchk/music-importer/compare/v0.1.4...v0.1.5) (2026-07-19)
 
 
