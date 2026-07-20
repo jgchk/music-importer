@@ -18,7 +18,14 @@ resolving a downloader-delivered review with `reject-and-retry-download` deletes
 ships a signed verdict back to the downloader, which revives the acquisition for a better copy
 (configure `VERDICT_WEBHOOK_URLS` + `VERDICT_WEBHOOK_SECRET`, the same secret value the
 downloader's verdict receiver verifies with; producer-owned contract under `contracts/events/`).
-Follow-ups on deck: the quality-ladder duplicate policy and notifications.
+Shipped since (`mcp-oauth-resource-server`): the MCP endpoint can be an OAuth 2.1 Resource Server
+(MCP `2025-06-18` authorization) — config-dormant. Absent `OAUTH_ISSUER`, `POST /mcp` stays open
+exactly as before; set `OAUTH_ISSUER` (the authorization server) and `OAUTH_RESOURCE` (this
+server's canonical resource identifier = its public MCP URL) to publish RFC 9728 protected-resource
+metadata at `GET /.well-known/oauth-protected-resource` and enforce a bearer token on `/mcp`
+(JWKS-verified signature, issuer, expiry, and RFC 8707 audience binding to `OAUTH_RESOURCE`; a 401
+carries the `WWW-Authenticate` challenge to the metadata). Follow-ups on deck: the quality-ladder
+duplicate policy and notifications.
 
 ## Running
 

@@ -37,6 +37,8 @@ import {
 import { registerIntakeWebhook } from './intake-webhook.js';
 import type { IntakeWebhookOptions } from './intake-webhook.js';
 import { registerMcpEndpoint } from '../mcp/server.js';
+import { mcpBearerPreHandler, registerMcpAuth } from '../mcp/bearer-auth.js';
+import type { McpAuthOptions } from '../mcp/bearer-auth.js';
 
 /**
  * The versioned HTTP API. A thin inbound adapter: it validates against the shared zod contracts,
@@ -64,6 +66,11 @@ export interface HttpAppOptions {
   readonly beetsConfig?: TaggerConfiguration;
   /** When configured, the signed acquisition webhook receiver; absent → the route does not exist. */
   readonly intake?: IntakeWebhookOptions;
+  /**
+   * When configured, the MCP endpoint becomes an OAuth 2.1 Resource Server: the RFC 9728 metadata
+   * route is registered and `POST /mcp` requires a valid bearer token. Absent → `/mcp` is open.
+   */
+  readonly oauth?: McpAuthOptions;
 }
 
 export async function buildHttpApp(
@@ -99,7 +106,18 @@ export async function buildHttpApp(
   if (options.intake !== undefined) {
     await registerIntakeWebhook(app, deps, options.intake);
   }
-  registerMcpEndpoint(app, deps, logger, version);
+  // The MCP resource server is config-dormant: with no `oauth` option, no metadata route is
+  // registered and `/mcp` carries no bearer guard — the endpoint stays open exactly as before.
+  if (options.oauth !== undefined) {
+    registerMcpAuth(app, options.oauth);
+  }
+  registerMcpEndpoint(
+    app,
+    deps,
+    logger,
+    version,
+    options.oauth === undefined ? undefined : mcpBearerPreHandler(options.oauth),
+  );
 
   await app.ready();
   return app;
