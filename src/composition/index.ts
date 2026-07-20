@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { BeetsBridge } from '../adapters/beets/bridge-adapter.js';
 import { FilesystemIntake } from '../adapters/filesystem/intake.js';
 import { InProcessEventBus } from '../adapters/sqlite/event-bus.js';
@@ -22,7 +23,9 @@ import type { Clock } from '../application/ports/system-ports.js';
 import { ImportStatusProjection } from '../application/projections/read-models.js';
 import { publishedEventMapping } from '../interfaces/contracts/events/mapping.js';
 import { buildHttpApp } from '../interfaces/http/app.js';
+import type { McpAuthOptions } from '../interfaces/mcp/bearer-auth.js';
 import { loadConfig } from './config.js';
+import type { OAuthConfig } from './config.js';
 import { readAppVersion } from './version.js';
 
 /**
@@ -36,6 +39,36 @@ import { readAppVersion } from './version.js';
  */
 
 const clock: Clock = { now: () => new Date() };
+
+/**
+ * Build the MCP resource server's bearer verifier from jose: the JWKS URI is taken explicitly or
+ * read from the issuer's OIDC discovery document once at startup, and `createRemoteJWKSet` caches
+ * the keys (refetching on rotation). The verifier checks only the signature and `exp`/`nbf` time
+ * claims here; the issuer and RFC 8707 audience binding are enforced by the pure edge in
+ * `bearer-auth`. Only reached when an issuer is configured (the resource server is otherwise
+ * dormant), so a bad issuer/discovery surfaces at boot rather than dropping into an open endpoint.
+ */
+async function buildOAuthOptions(oauth: OAuthConfig): Promise<McpAuthOptions> {
+  let jwksUri = oauth.jwksUri;
+  if (jwksUri === undefined) {
+    const discoveryUrl = new URL('.well-known/openid-configuration', `${oauth.issuer}/`);
+    const response = await fetch(discoveryUrl);
+    if (!response.ok) {
+      throw new Error(`OIDC discovery failed (${response.status}) at ${discoveryUrl.href}`);
+    }
+    const document = (await response.json()) as { jwks_uri?: unknown };
+    if (typeof document.jwks_uri !== 'string') {
+      throw new Error(`OIDC discovery document has no jwks_uri at ${discoveryUrl.href}`);
+    }
+    jwksUri = document.jwks_uri;
+  }
+  const jwks = createRemoteJWKSet(new URL(jwksUri));
+  return {
+    issuer: oauth.issuer,
+    resource: oauth.resource,
+    verify: async (token) => (await jwtVerify(token, jwks)).payload,
+  };
+}
 
 async function main(): Promise<void> {
   const logger = createLogger();
@@ -130,10 +163,23 @@ async function main(): Promise<void> {
     status,
     policy: { autoApplyThreshold: config.autoApplyThreshold },
   };
+  // The MCP OAuth resource server is config-dormant: no issuer, no metadata route, no bearer guard.
+  let oauth: McpAuthOptions | undefined;
+  if (config.oauth === undefined) {
+    logger.info('mcp oauth resource server dormant (no OAUTH_ISSUER)');
+  } else {
+    oauth = await buildOAuthOptions(config.oauth);
+    logger.info(
+      { issuer: config.oauth.issuer, resource: config.oauth.resource },
+      'mcp oauth resource server active',
+    );
+  }
+
   // The acquisition webhook receiver is config-dormant: no secret, no route (downloader-intake D2).
   const intakeWebhook = config.intakeWebhook;
   const httpApp = await buildHttpApp(deps, logger, readAppVersion(), {
     beetsConfig: beetsConfig.value,
+    oauth,
     intake:
       intakeWebhook === undefined
         ? undefined
