@@ -1,5 +1,4 @@
 import type { FastifyInstance } from 'fastify';
-import type { JWTPayload } from 'jose';
 import { afterEach, describe, expect, it } from 'vitest';
 import { SOURCE, candidate } from '../../domain/import/__fixtures__/import-fixtures.js';
 import { importIdFor, submitImport } from '../../application/import/use-cases.js';
@@ -286,87 +285,6 @@ describe('request identity', () => {
     const minted = await app.inject({ method: 'GET', url: '/api/v1/imports' });
     expect(traced.statusCode).toBe(200);
     expect(minted.statusCode).toBe(200);
-  });
-});
-
-describe('MCP OAuth resource server (config-gated)', () => {
-  const ISSUER = 'https://auth.jake.cafe/realms/homelab';
-  const RESOURCE = 'https://music-importer.jake.cafe/mcp';
-  const METADATA_PATH = '/.well-known/oauth-protected-resource';
-  const initialize = {
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: {
-      protocolVersion: '2025-06-18',
-      capabilities: {},
-      clientInfo: { name: 'test', version: '0' },
-    },
-  };
-  const mcpHeaders = {
-    'content-type': 'application/json',
-    accept: 'application/json, text/event-stream',
-  };
-
-  async function buildWithOauth(verify: (token: string) => Promise<JWTPayload>) {
-    const wiring = testWiring();
-    app = await buildHttpApp(wiring.deps, silentLogger(), '0.0.0-test', {
-      oauth: { issuer: ISSUER, resource: RESOURCE, verify },
-    });
-  }
-
-  it('serves protected resource metadata only when configured', async () => {
-    await build();
-    expect((await app.inject({ method: 'GET', url: METADATA_PATH })).statusCode).toBe(404);
-
-    await app.close();
-    await buildWithOauth(() => Promise.resolve({ iss: ISSUER, aud: RESOURCE }));
-    const res = await app.inject({ method: 'GET', url: METADATA_PATH });
-    expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({
-      resource: RESOURCE,
-      authorization_servers: [ISSUER],
-      bearer_methods_supported: ['header'],
-    });
-  });
-
-  it('challenges an MCP request with no token — 401 + WWW-Authenticate', async () => {
-    await buildWithOauth(() => Promise.resolve({ iss: ISSUER, aud: RESOURCE }));
-    const res = await app.inject({
-      method: 'POST',
-      url: '/mcp',
-      headers: mcpHeaders,
-      payload: initialize,
-    });
-    expect(res.statusCode).toBe(401);
-    expect(res.headers['www-authenticate']).toBe(
-      `Bearer resource_metadata="https://music-importer.jake.cafe${METADATA_PATH}"`,
-    );
-    expect(res.json()).toEqual({ error: 'MissingToken' });
-  });
-
-  it('challenges an MCP request bearing an invalid token', async () => {
-    await buildWithOauth(() => Promise.reject(new Error('bad')));
-    const res = await app.inject({
-      method: 'POST',
-      url: '/mcp',
-      headers: { ...mcpHeaders, authorization: 'Bearer bad' },
-      payload: initialize,
-    });
-    expect(res.statusCode).toBe(401);
-    expect(res.json()).toEqual({ error: 'InvalidToken' });
-  });
-
-  it('lets a valid, resource-bound token through to the MCP handler', async () => {
-    await buildWithOauth(() => Promise.resolve({ iss: ISSUER, aud: RESOURCE }));
-    const res = await app.inject({
-      method: 'POST',
-      url: '/mcp',
-      headers: { ...mcpHeaders, authorization: 'Bearer good' },
-      payload: initialize,
-    });
-    expect(res.statusCode).toBe(200);
-    expect(res.body).toContain('serverInfo');
   });
 });
 

@@ -34,7 +34,6 @@ import {
   resolveReviewToolSchema,
   toResolveReviewRequest,
 } from './resolve-review-tool.js';
-import type { McpPreHandler } from './bearer-auth.js';
 
 /**
  * The MCP inbound adapter: the same application use-cases, exposed idiomatically. Commands become
@@ -174,16 +173,12 @@ export function buildMcpServer(deps: UseCaseDeps, logger: Logger, version: strin
  * transport write the raw response directly. `GET`/`DELETE` — which the streamable HTTP protocol
  * uses only to open or tear down server-push SSE streams — are refused with a method-not-allowed
  * JSON-RPC error, since this stateless surface never pushes to clients.
- *
- * When an OAuth resource server is configured, `preHandler` guards `POST /mcp` with bearer-token
- * enforcement (config-dormant: absent, the route is unauthenticated exactly as before).
  */
 export function registerMcpEndpoint(
   app: FastifyInstance,
   deps: UseCaseDeps,
   logger: Logger,
   version: string,
-  preHandler?: McpPreHandler,
 ): void {
   // `hide: true` keeps MCP off the derived OpenAPI document: `/mcp` is a JSON-RPC surface, not
   // part of the versioned REST contract the OpenAPI snapshot guards.
@@ -191,7 +186,7 @@ export function registerMcpEndpoint(
 
   app.post(
     MCP_PATH,
-    { ...hidden, ...(preHandler === undefined ? {} : { preHandler }) },
+    hidden,
     async (
       request: { raw: IncomingMessage; body?: unknown },
       reply: { hijack: () => void; raw: ServerResponse },
