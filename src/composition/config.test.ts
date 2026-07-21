@@ -122,63 +122,6 @@ describe('loadConfig', () => {
     expect(result._unsafeUnwrapErr()).toContain('VERDICT_WEBHOOK_SECRET');
   });
 
-  it('leaves the MCP resource server dormant when no issuer is configured', () => {
-    expect(loadConfig(REQUIRED)._unsafeUnwrap().oauth).toBeUndefined();
-  });
-
-  it('activates the MCP resource server from an issuer plus resource', () => {
-    const config = loadConfig({
-      ...REQUIRED,
-      OAUTH_ISSUER: 'https://auth.jake.cafe/realms/homelab',
-      OAUTH_RESOURCE: 'https://music-importer.jake.cafe/mcp',
-    })._unsafeUnwrap();
-    expect(config.oauth).toEqual({
-      issuer: 'https://auth.jake.cafe/realms/homelab',
-      resource: 'https://music-importer.jake.cafe/mcp',
-    });
-  });
-
-  it('carries an explicit JWKS URI override when supplied', () => {
-    const config = loadConfig({
-      ...REQUIRED,
-      OAUTH_ISSUER: 'https://auth.jake.cafe/realms/homelab',
-      OAUTH_RESOURCE: 'https://music-importer.jake.cafe/mcp',
-      OAUTH_JWKS_URI: 'https://auth.jake.cafe/realms/homelab/protocol/openid-connect/certs',
-    })._unsafeUnwrap();
-    expect(config.oauth?.jwksUri).toBe(
-      'https://auth.jake.cafe/realms/homelab/protocol/openid-connect/certs',
-    );
-  });
-
-  it('rejects an issuer configured without a resource identifier', () => {
-    const result = loadConfig({
-      ...REQUIRED,
-      OAUTH_ISSUER: 'https://auth.jake.cafe/realms/homelab',
-    });
-    expect(result._unsafeUnwrapErr()).toContain('OAUTH_RESOURCE');
-  });
-
-  it('rejects an unparseable issuer, resource, or JWKS URI', () => {
-    expect(loadConfig({ ...REQUIRED, OAUTH_ISSUER: 'not a url' })._unsafeUnwrapErr()).toContain(
-      'OAUTH_ISSUER',
-    );
-    expect(
-      loadConfig({
-        ...REQUIRED,
-        OAUTH_ISSUER: 'https://auth.jake.cafe/realms/homelab',
-        OAUTH_RESOURCE: 'not a url',
-      })._unsafeUnwrapErr(),
-    ).toContain('OAUTH_RESOURCE');
-    expect(
-      loadConfig({
-        ...REQUIRED,
-        OAUTH_ISSUER: 'https://auth.jake.cafe/realms/homelab',
-        OAUTH_RESOURCE: 'https://music-importer.jake.cafe/mcp',
-        OAUTH_JWKS_URI: 'not a url',
-      })._unsafeUnwrapErr(),
-    ).toContain('OAUTH_JWKS_URI');
-  });
-
   it('rejects an unparseable subscriber URL and a malformed verdict secret', () => {
     expect(
       loadConfig({ ...REQUIRED, VERDICT_WEBHOOK_URLS: 'not a url' })._unsafeUnwrapErr(),

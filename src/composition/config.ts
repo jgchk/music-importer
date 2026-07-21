@@ -44,23 +44,6 @@ const envSchema = z.object({
    * with — the same value the receiving downloader verifies with.
    */
   VERDICT_WEBHOOK_SECRET: z.string().min(1).optional(),
-  /**
-   * The OAuth 2.1 authorization server (issuer) the MCP endpoint validates access tokens against
-   * (e.g. `https://auth.jake.cafe/realms/homelab`). Absent → the MCP resource server is dormant
-   * (no metadata route, no bearer enforcement; `/mcp` stays open). Set → OAUTH_RESOURCE is required.
-   */
-  OAUTH_ISSUER: z.string().min(1).optional(),
-  /**
-   * This server's canonical resource identifier = its public MCP URL
-   * (`https://music-importer.jake.cafe/mcp`). Required iff OAUTH_ISSUER is set; tokens must carry
-   * it in their audience (RFC 8707).
-   */
-  OAUTH_RESOURCE: z.string().min(1).optional(),
-  /**
-   * An explicit JWKS endpoint overriding OIDC discovery. Absent → the JWKS URI is read from the
-   * issuer's `.well-known/openid-configuration` at startup.
-   */
-  OAUTH_JWKS_URI: z.string().min(1).optional(),
 });
 
 /** The acquisition webhook receiver's config group, present only when the receiver is active. */
@@ -75,14 +58,6 @@ export interface VerdictWebhookConfig {
   readonly secret: string;
 }
 
-/** The MCP OAuth resource-server config group, present only when an issuer is configured. */
-export interface OAuthConfig {
-  readonly issuer: string;
-  readonly resource: string;
-  /** An explicit JWKS endpoint; absent → derived from the issuer's OIDC discovery document. */
-  readonly jwksUri?: string;
-}
-
 export interface AppConfig {
   readonly httpPort: number;
   readonly host: string;
@@ -94,7 +69,6 @@ export interface AppConfig {
   readonly autoApplyThreshold: number;
   readonly intakeWebhook?: IntakeWebhookConfig;
   readonly verdictWebhooks?: VerdictWebhookConfig;
-  readonly oauth?: OAuthConfig;
 }
 
 /** A `whsec_`-prefixed (or bare) base64 secret that decodes to a non-empty key. */
@@ -141,24 +115,6 @@ function verdictWebhooksOf(data: {
   return ok({ urls, secret });
 }
 
-function oauthOf(data: {
-  readonly OAUTH_ISSUER?: string;
-  readonly OAUTH_RESOURCE?: string;
-  readonly OAUTH_JWKS_URI?: string;
-}): Result<OAuthConfig | undefined, string> {
-  const issuer = data.OAUTH_ISSUER;
-  if (issuer === undefined) return ok(undefined); // dormant: no issuer, no resource server
-  if (!URL.canParse(issuer)) return err(`OAUTH_ISSUER is not a valid URL: ${issuer}`);
-  const resource = data.OAUTH_RESOURCE;
-  if (resource === undefined) return err('OAUTH_RESOURCE is required when OAUTH_ISSUER is set');
-  if (!URL.canParse(resource)) return err(`OAUTH_RESOURCE is not a valid URL: ${resource}`);
-  const jwksUri = data.OAUTH_JWKS_URI;
-  if (jwksUri !== undefined && !URL.canParse(jwksUri)) {
-    return err(`OAUTH_JWKS_URI is not a valid URL: ${jwksUri}`);
-  }
-  return ok({ issuer, resource, jwksUri });
-}
-
 export function loadConfig(env: NodeJS.ProcessEnv): Result<AppConfig, string> {
   const parsed = envSchema.safeParse(env);
   if (!parsed.success) return err(parsed.error.message);
@@ -166,12 +122,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): Result<AppConfig, string> {
   if (intakeWebhook.isErr()) return err(intakeWebhook.error);
   const verdictWebhooks = verdictWebhooksOf(parsed.data);
   if (verdictWebhooks.isErr()) return err(verdictWebhooks.error);
-  const oauth = oauthOf(parsed.data);
-  if (oauth.isErr()) return err(oauth.error);
   return ok({
     intakeWebhook: intakeWebhook.value,
     verdictWebhooks: verdictWebhooks.value,
-    oauth: oauth.value,
     httpPort: parsed.data.HTTP_PORT,
     host: parsed.data.HTTP_HOST,
     databaseFile: parsed.data.DATABASE_FILE,
