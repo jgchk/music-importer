@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.8](https://github.com/jgchk/music-importer/compare/v0.1.7...v0.1.8) (2026-07-21)
+
+
+### Bug Fixes
+
+* **mcp:** remove OAuth resource-server auth from the MCP endpoint ([3e8debf](https://github.com/jgchk/music-importer/commit/3e8debf35368d271aa953838bcfbe81e61b5e40b))
+
 ## [0.1.7](https://github.com/jgchk/music-importer/compare/v0.1.6...v0.1.7) (2026-07-20)
 
 
